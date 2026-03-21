@@ -5,7 +5,7 @@
 
 ## User Requirements
 
-<!-- TODO -->
+<!-- DONE -->
 Scenario: List recent incidents
   Given the user has a valid BetterStack API token configured
   When they run the CLI to list incidents
@@ -109,7 +109,7 @@ Scenario: Install the CLI
 
 ## Technical Specifications
 
-<!-- TODO -->
+<!-- DONE -->
 Scenario: Go module structure
   Given a new Go module at github.com/tommymorgan/betterstack-cli
   When the project is initialized
