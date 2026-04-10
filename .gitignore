@@ -1,2 +1,6 @@
-betterstack
+/betterstack-cli
 *.exe
+*.pkg.tar.zst
+pkg/
+src/
+betterstack-cli-git/
