@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,7 @@ const (
 	uptimeBaseURL    = "https://uptime.betterstack.com"
 	incidentsPath    = "/api/v3/incidents"
 	monitorsPath     = "/api/v2/monitors"
+	sourcesPath      = "/api/v2/sources"
 )
 
 type Client struct {
@@ -136,6 +138,29 @@ func (c *Client) GetMonitor(ctx context.Context, id string) (json.RawMessage, er
 	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, monitorsPath, id))
 }
 
+func (c *Client) ListSources(ctx context.Context, limit int) ([]json.RawMessage, error) {
+	return c.fetchAll(ctx, c.baseURL+sourcesPath, nil, limit)
+}
+
+func (c *Client) GetSource(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, sourcesPath, id))
+}
+
+func (c *Client) CreateSource(ctx context.Context, name, sourceType string) (json.RawMessage, error) {
+	payload, err := json.Marshal(map[string]string{
+		"name": name,
+		"type": sourceType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	return c.postOne(ctx, c.baseURL+sourcesPath, bytes.NewReader(payload))
+}
+
+func (c *Client) DeleteSource(ctx context.Context, id string) error {
+	return c.deleteOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, sourcesPath, id))
+}
+
 func (c *Client) fetchAll(ctx context.Context, endpoint string, params url.Values, limit int) ([]json.RawMessage, error) {
 	all := make([]json.RawMessage, 0)
 	nextURL := endpoint
@@ -144,7 +169,7 @@ func (c *Client) fetchAll(ctx context.Context, endpoint string, params url.Value
 	}
 
 	for nextURL != "" {
-		body, err := c.doRequestWithRetry(ctx, nextURL)
+		body, err := c.doRequestWithRetry(ctx, http.MethodGet, nextURL, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +197,7 @@ func (c *Client) fetchAll(ctx context.Context, endpoint string, params url.Value
 }
 
 func (c *Client) fetchOne(ctx context.Context, endpoint string) (json.RawMessage, error) {
-	body, err := c.doRequestWithRetry(ctx, endpoint)
+	body, err := c.doRequestWithRetry(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +210,27 @@ func (c *Client) fetchOne(ctx context.Context, endpoint string) (json.RawMessage
 	}
 
 	return wrapper.Data, nil
+}
+
+func (c *Client) postOne(ctx context.Context, endpoint string, reqBody io.Reader) (json.RawMessage, error) {
+	body, err := c.doRequestWithRetry(ctx, http.MethodPost, endpoint, reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapper struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(body, &wrapper); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return wrapper.Data, nil
+}
+
+func (c *Client) deleteOne(ctx context.Context, endpoint string) error {
+	_, err := c.doRequestWithRetry(ctx, http.MethodDelete, endpoint, nil)
+	return err
 }
 
 type APIError struct {
@@ -206,12 +252,26 @@ func (e *retryableError) Error() string {
 	return e.apiError.Error()
 }
 
-func (c *Client) doRequestWithRetry(ctx context.Context, rawURL string) ([]byte, error) {
+func (c *Client) doRequestWithRetry(ctx context.Context, method, rawURL string, body io.Reader) ([]byte, error) {
 	var lastErr error
+	var bodyBytes []byte
+	if body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read request body: %w", err)
+		}
+	}
+
 	for attempt := range maxRetries {
-		body, err := c.doRequest(ctx, rawURL)
+		var reqBody io.Reader
+		if bodyBytes != nil {
+			reqBody = bytes.NewReader(bodyBytes)
+		}
+
+		respBody, err := c.doRequest(ctx, method, rawURL, reqBody)
 		if err == nil {
-			return body, nil
+			return respBody, nil
 		}
 
 		re, ok := err.(*retryableError)
@@ -239,8 +299,8 @@ func (c *Client) doRequestWithRetry(ctx context.Context, rawURL string) ([]byte,
 	return nil, lastErr
 }
 
-func (c *Client) doRequest(ctx context.Context, rawURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+func (c *Client) doRequest(ctx context.Context, method, rawURL string, body io.Reader) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -249,13 +309,21 @@ func (c *Client) doRequest(ctx context.Context, rawURL string) ([]byte, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "betterstack-cli/"+c.version)
 
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -264,7 +332,7 @@ func (c *Client) doRequest(ctx context.Context, rawURL string) ([]byte, error) {
 		retryHeader := resp.Header.Get("Retry-After")
 		retryAfter := parseRetryAfter(retryHeader)
 		return nil, &retryableError{
-			apiError:       &APIError{StatusCode: resp.StatusCode, Message: string(body)},
+			apiError:       &APIError{StatusCode: resp.StatusCode, Message: string(respBody)},
 			retryAfter:     retryAfter,
 			hasRetryHeader: retryHeader != "",
 		}
@@ -273,11 +341,11 @@ func (c *Client) doRequest(ctx context.Context, rawURL string) ([]byte, error) {
 	if resp.StatusCode >= 400 {
 		return nil, &APIError{
 			StatusCode: resp.StatusCode,
-			Message:    string(body),
+			Message:    string(respBody),
 		}
 	}
 
-	return body, nil
+	return respBody, nil
 }
 
 func parseRetryAfter(value string) time.Duration {
