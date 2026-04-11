@@ -41,6 +41,31 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		case strings.HasPrefix(r.URL.Path, "/api/v2/monitors/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v2/monitors/")
 			fmt.Fprintf(w, `{"data":{"id":"%s","attributes":{"pronounceable_name":"Monitor %s","url":"https://example.com","status":"up","check_frequency":30}}}`, id, id)
+		case r.URL.Path == "/api/v2/sources" && r.Method == "GET":
+			fmt.Fprint(w, `{"data":[{
+				"id":"10",
+				"attributes":{
+					"name":"dev-cloudwatch",
+					"type":"amazon_cloudwatch",
+					"webhook_url":"https://uptime.betterstack.com/hook/abc123"
+				}
+			}]}`)
+		case r.URL.Path == "/api/v2/sources" && r.Method == "POST":
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"data":{
+				"id":"20",
+				"attributes":{
+					"name":"new-source",
+					"type":"datadog",
+					"webhook_url":"https://uptime.betterstack.com/hook/new123",
+					"created_at":"2026-04-10T14:30:00Z"
+				}
+			}}`)
+		case strings.HasPrefix(r.URL.Path, "/api/v2/sources/") && r.Method == "GET":
+			id := strings.TrimPrefix(r.URL.Path, "/api/v2/sources/")
+			fmt.Fprintf(w, `{"data":{"id":"%s","attributes":{"name":"Source %s","type":"amazon_cloudwatch","webhook_url":"https://uptime.betterstack.com/hook/xyz","created_at":"2026-04-10T14:30:00Z"}}}`, id, id)
+		case strings.HasPrefix(r.URL.Path, "/api/v2/sources/") && r.Method == "DELETE":
+			w.WriteHeader(http.StatusNoContent)
 		default:
 			w.WriteHeader(404)
 		}
@@ -54,6 +79,10 @@ func executeCommand(t *testing.T, args ...string) (string, string, error) {
 	rootCmd.SetOut(stdout)
 	rootCmd.SetErr(stderr)
 	rootCmd.SetArgs(args)
+	// Reset persistent flags to avoid state leaking between tests
+	rootCmd.PersistentFlags().Set("json", "false")
+	// Reset subcommand flags that may leak between tests
+	sourcesDeleteCmd.Flags().Set("yes", "false")
 	err := rootCmd.Execute()
 	return stdout.String(), stderr.String(), err
 }
@@ -302,6 +331,197 @@ func TestEmptyResults_ShowsEmptyJSONArray(t *testing.T) {
 	}
 	if !strings.Contains(strings.TrimSpace(out), "[]") {
 		t.Errorf("expected empty JSON array, got: %s", out)
+	}
+}
+
+func TestSourcesList_ShowsTableWithIDNameTypeWebhookURL(t *testing.T) {
+	srv := setupTestServer(t)
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	out, _, err := executeCommand(t, "sources", "list")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, expected := range []string{"10", "dev-cloudwatch", "amazon_cloudwatch", "https://uptime.betterstack.com/hook/abc123"} {
+		if !strings.Contains(out, expected) {
+			t.Errorf("expected %q in output:\n%s", expected, out)
+		}
+	}
+}
+
+func TestSourcesList_JSONOutput(t *testing.T) {
+	srv := setupTestServer(t)
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	out, _, err := executeCommand(t, "sources", "list", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var parsed interface{}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nOutput:\n%s", err, out)
+	}
+}
+
+func TestSourcesGet_ShowsSourceDetailsWithWebhookURL(t *testing.T) {
+	srv := setupTestServer(t)
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	out, _, err := executeCommand(t, "sources", "get", "42")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, expected := range []string{"42", "Source 42", "amazon_cloudwatch", "https://uptime.betterstack.com/hook/xyz", "2026-04-10 14:30:00 UTC"} {
+		if !strings.Contains(out, expected) {
+			t.Errorf("expected %q in output:\n%s", expected, out)
+		}
+	}
+}
+
+func TestSourcesGet_JSONOutput(t *testing.T) {
+	srv := setupTestServer(t)
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	out, _, err := executeCommand(t, "sources", "get", "42", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var parsed interface{}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nOutput:\n%s", err, out)
+	}
+}
+
+func TestSourcesCreate_ShowsCreatedSourceWithWebhookURL(t *testing.T) {
+	srv := setupTestServer(t)
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	out, _, err := executeCommand(t, "sources", "create", "--name", "new-source", "--type", "datadog")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, expected := range []string{"20", "new-source", "datadog", "https://uptime.betterstack.com/hook/new123"} {
+		if !strings.Contains(out, expected) {
+			t.Errorf("expected %q in output:\n%s", expected, out)
+		}
+	}
+}
+
+func TestSourcesCreate_FailsWithoutRequiredFlags(t *testing.T) {
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+
+	_, _, err := executeCommand(t, "sources", "create")
+	if err == nil {
+		t.Fatal("expected error when required flags not provided")
+	}
+
+	if !strings.Contains(err.Error(), "name") {
+		t.Errorf("error should mention missing flag, got: %s", err.Error())
+	}
+}
+
+func TestSourcesCreate_FailsWithoutTypeFlag(t *testing.T) {
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+
+	_, _, err := executeCommand(t, "sources", "create", "--name", "test")
+	if err == nil {
+		t.Fatal("expected error when --type flag not provided")
+	}
+
+	if !strings.Contains(err.Error(), "type") {
+		t.Errorf("error should mention missing --type flag, got: %s", err.Error())
+	}
+}
+
+func TestSourcesDelete_ShowsConfirmationMessage(t *testing.T) {
+	srv := setupTestServer(t)
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	out, _, err := executeCommand(t, "sources", "delete", "42", "--yes")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(out, "Deleted source 42") {
+		t.Errorf("expected confirmation message, got:\n%s", out)
+	}
+}
+
+func TestSourcesDelete_JSONOutput(t *testing.T) {
+	srv := setupTestServer(t)
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	out, _, err := executeCommand(t, "sources", "delete", "42", "--yes", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
+	}
+	if result["deleted"] != true {
+		t.Errorf("expected deleted=true, got %v", result["deleted"])
+	}
+	if result["id"] != "42" {
+		t.Errorf("expected id=42, got %v", result["id"])
+	}
+}
+
+func TestSourcesDelete_FailsWithoutYesFlag(t *testing.T) {
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+
+	_, _, err := executeCommand(t, "sources", "delete", "42")
+	if err == nil {
+		t.Fatal("expected error when --yes flag not provided")
+	}
+
+	if !strings.Contains(err.Error(), "--yes") {
+		t.Errorf("error should mention --yes flag, got: %s", err.Error())
+	}
+}
+
+func TestSourcesGet_RequiresIDArgument(t *testing.T) {
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+
+	_, _, err := executeCommand(t, "sources", "get")
+	if err == nil {
+		t.Fatal("expected error when no ID provided")
+	}
+}
+
+func TestSourcesDelete_RequiresIDArgument(t *testing.T) {
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+
+	_, _, err := executeCommand(t, "sources", "delete", "--yes")
+	if err == nil {
+		t.Fatal("expected error when no ID provided")
 	}
 }
 

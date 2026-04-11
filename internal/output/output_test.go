@@ -352,3 +352,104 @@ func TestRenderMonitorDetail_ShowsKeyValuePairs(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderSourcesTable_ShowsCorrectColumns(t *testing.T) {
+	data := []json.RawMessage{
+		json.RawMessage(`{
+			"id": "1",
+			"attributes": {
+				"name": "dev-cloudwatch",
+				"type": "amazon_cloudwatch",
+				"webhook_url": "https://uptime.betterstack.com/hook/abc123"
+			}
+		}`),
+	}
+
+	var buf bytes.Buffer
+	if err := RenderSourcesTable(&buf, data); err != nil {
+		t.Fatal(err)
+	}
+
+	output := buf.String()
+	for _, col := range []string{"ID", "NAME", "TYPE", "WEBHOOK URL"} {
+		if !strings.Contains(output, col) {
+			t.Errorf("missing column header %q in output:\n%s", col, output)
+		}
+	}
+
+	if !strings.Contains(output, "dev-cloudwatch") {
+		t.Error("missing source name")
+	}
+	if !strings.Contains(output, "amazon_cloudwatch") {
+		t.Error("missing source type")
+	}
+	if !strings.Contains(output, "https://uptime.betterstack.com/hook/abc123") {
+		t.Error("missing webhook URL")
+	}
+}
+
+func TestRenderSourcesTable_EmptyData(t *testing.T) {
+	var buf bytes.Buffer
+	if err := RenderSourcesTable(&buf, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 1 {
+		t.Errorf("expected only header line for empty data, got %d lines", len(lines))
+	}
+}
+
+func TestRenderDeleteConfirmation_ShowsDeletedMessage(t *testing.T) {
+	var buf bytes.Buffer
+	if err := RenderDeleteConfirmation(&buf, "42"); err != nil {
+		t.Fatal(err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Deleted source 42") {
+		t.Errorf("expected 'Deleted source 42', got: %s", output)
+	}
+}
+
+func TestRenderDeleteConfirmationJSON_ShowsStructuredOutput(t *testing.T) {
+	var buf bytes.Buffer
+	if err := RenderDeleteConfirmationJSON(&buf, "42"); err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nOutput: %s", err, buf.String())
+	}
+	if result["deleted"] != true {
+		t.Errorf("expected deleted=true, got %v", result["deleted"])
+	}
+	if result["id"] != "42" {
+		t.Errorf("expected id=42, got %v", result["id"])
+	}
+}
+
+func TestRenderSourceDetail_ShowsKeyValuePairs(t *testing.T) {
+	data := json.RawMessage(`{
+		"id": "42",
+		"attributes": {
+			"name": "prod-cloudwatch",
+			"type": "amazon_cloudwatch",
+			"webhook_url": "https://uptime.betterstack.com/hook/xyz789",
+			"created_at": "2026-04-10T14:30:00Z"
+		}
+	}`)
+
+	var buf bytes.Buffer
+	if err := RenderSourceDetail(&buf, data); err != nil {
+		t.Fatal(err)
+	}
+
+	output := buf.String()
+	for _, expected := range []string{"42", "prod-cloudwatch", "amazon_cloudwatch", "https://uptime.betterstack.com/hook/xyz789", "2026-04-10 14:30:00 UTC"} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("expected %q in detail output:\n%s", expected, output)
+		}
+	}
+}

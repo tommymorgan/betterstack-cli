@@ -1,6 +1,6 @@
 # betterstack-cli
 
-A command-line tool for querying BetterStack incidents and monitors, designed for use by AI agents (Claude Code, etc.) and humans alike.
+A command-line tool for querying BetterStack incidents and monitors and managing sources (webhook integrations), designed for use by AI agents (Claude Code, etc.) and humans alike.
 
 ## Install
 
@@ -59,6 +59,22 @@ betterstack-cli monitors list --status down
 
 # Get a single monitor
 betterstack-cli monitors get <id>
+```
+
+### Sources
+
+```bash
+# List all sources
+betterstack-cli sources list
+
+# Get a source (includes webhook URL)
+betterstack-cli sources get <id>
+
+# Create a new source
+betterstack-cli sources create --name "dev-cloudwatch" --type amazon_cloudwatch
+
+# Delete a source (requires --yes)
+betterstack-cli sources delete <id> --yes
 ```
 
 ### JSON output

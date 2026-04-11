@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -281,5 +282,199 @@ func TestClient_GetMonitorSendsToCorrectEndpoint(t *testing.T) {
 
 	if gotPath != monitorsPath+"/99" {
 		t.Errorf("path = %q, want %q", gotPath, monitorsPath+"/99")
+	}
+}
+
+func TestClient_PostRequestSendsContentTypeJSON(t *testing.T) {
+	var gotMethod, gotContentType string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotContentType = r.Header.Get("Content-Type")
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{"data":{"id":"1","attributes":{"name":"test"}}}`)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	body := strings.NewReader(`{"name":"test","type":"amazon_cloudwatch"}`)
+	result, err := c.postOne(context.Background(), srv.URL+"/api/v2/sources", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotMethod != "POST" {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotContentType != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", gotContentType)
+	}
+	if !strings.Contains(string(gotBody), `"name"`) {
+		t.Errorf("body missing name field: %s", gotBody)
+	}
+	if result == nil {
+		t.Error("expected non-nil result")
+	}
+}
+
+func TestClient_DeleteRequestSendsNoBody(t *testing.T) {
+	var gotMethod string
+	var gotBodyLen int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotBodyLen = r.ContentLength
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	err := c.deleteOne(context.Background(), srv.URL+"/api/v2/sources/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotMethod != "DELETE" {
+		t.Errorf("method = %q, want DELETE", gotMethod)
+	}
+	if gotBodyLen > 0 {
+		t.Errorf("DELETE should have no body, got Content-Length %d", gotBodyLen)
+	}
+}
+
+func TestClient_ListSourcesSendsToCorrectEndpoint(t *testing.T) {
+	var gotPath, gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		fmt.Fprint(w, `{"data":[{"id":"1","attributes":{"name":"CloudWatch","type":"amazon_cloudwatch","webhook_url":"https://example.com/hook"}}]}`)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	results, err := c.ListSources(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotMethod != "GET" {
+		t.Errorf("method = %q, want GET", gotMethod)
+	}
+	if gotPath != sourcesPath {
+		t.Errorf("path = %q, want %q", gotPath, sourcesPath)
+	}
+	if len(results) != 1 {
+		t.Errorf("got %d results, want 1", len(results))
+	}
+}
+
+func TestClient_GetSourceSendsToCorrectEndpoint(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		fmt.Fprint(w, `{"data":{"id":"42","attributes":{"name":"CloudWatch","type":"amazon_cloudwatch","webhook_url":"https://example.com/hook"}}}`)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	result, err := c.GetSource(context.Background(), "42")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotPath != sourcesPath+"/42" {
+		t.Errorf("path = %q, want %q", gotPath, sourcesPath+"/42")
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed["id"] != "42" {
+		t.Errorf("id = %v, want 42", parsed["id"])
+	}
+}
+
+func TestClient_CreateSourceSendsPostWithJSONBody(t *testing.T) {
+	var gotPath, gotMethod, gotContentType string
+	var gotBody map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		gotContentType = r.Header.Get("Content-Type")
+		bodyBytes, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(bodyBytes, &gotBody); err != nil {
+			t.Errorf("failed to parse request body: %v", err)
+		}
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{"data":{"id":"1","attributes":{"name":"dev-cw","type":"amazon_cloudwatch","webhook_url":"https://uptime.betterstack.com/hook/abc123"}}}`)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	result, err := c.CreateSource(context.Background(), "dev-cw", "amazon_cloudwatch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotMethod != "POST" {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != sourcesPath {
+		t.Errorf("path = %q, want %q", gotPath, sourcesPath)
+	}
+	if gotContentType != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", gotContentType)
+	}
+	if gotBody["name"] != "dev-cw" {
+		t.Errorf("body name = %q, want dev-cw", gotBody["name"])
+	}
+	if gotBody["type"] != "amazon_cloudwatch" {
+		t.Errorf("body type = %q, want amazon_cloudwatch", gotBody["type"])
+	}
+	if result == nil {
+		t.Error("expected non-nil result")
+	}
+}
+
+func TestClient_DeleteSourceSendsDeleteAndSucceedsOn204(t *testing.T) {
+	var gotPath, gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	err := c.DeleteSource(context.Background(), "42")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotMethod != "DELETE" {
+		t.Errorf("method = %q, want DELETE", gotMethod)
+	}
+	if gotPath != sourcesPath+"/42" {
+		t.Errorf("path = %q, want %q", gotPath, sourcesPath+"/42")
+	}
+}
+
+func TestClient_ExistingGetCallersUnchanged(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		fmt.Fprint(w, `{"data":[{"id":"1"}]}`)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	results, err := c.ListIncidents(context.Background(), IncidentListParams{}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Errorf("got %d results, want 1", len(results))
 	}
 }
