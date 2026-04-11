@@ -136,55 +136,65 @@ func RenderMonitorDetail(w io.Writer, data json.RawMessage) error {
 	return tw.Flush()
 }
 
-type Source struct {
+type Integration struct {
 	ID         string `json:"id"`
 	Attributes struct {
 		Name       string `json:"name"`
-		Type       string `json:"type"`
 		WebhookURL string `json:"webhook_url"`
-		CreatedAt  string `json:"created_at"`
+		Paused     bool   `json:"paused"`
+		TeamName   string `json:"team_name"`
 	} `json:"attributes"`
 }
 
-func RenderSourcesTable(w io.Writer, data []json.RawMessage) error {
+func RenderIntegrationsTable(w io.Writer, data []json.RawMessage) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tNAME\tTYPE\tWEBHOOK URL")
+	fmt.Fprintln(tw, "ID\tNAME\tWEBHOOK URL\tPAUSED")
 
 	for _, raw := range data {
-		var src Source
-		if err := json.Unmarshal(raw, &src); err != nil {
+		var integ Integration
+		if err := json.Unmarshal(raw, &integ); err != nil {
 			fmt.Fprintf(tw, "-\t(parse error)\t-\t-\n")
 			continue
 		}
 
+		paused := "no"
+		if integ.Attributes.Paused {
+			paused = "yes"
+		}
+
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
-			src.ID,
-			src.Attributes.Name,
-			src.Attributes.Type,
-			src.Attributes.WebhookURL,
+			integ.ID,
+			integ.Attributes.Name,
+			integ.Attributes.WebhookURL,
+			paused,
 		)
 	}
 
 	return tw.Flush()
 }
 
-func RenderSourceDetail(w io.Writer, data json.RawMessage) error {
-	var src Source
-	if err := json.Unmarshal(data, &src); err != nil {
-		return fmt.Errorf("failed to parse source: %w", err)
+func RenderIntegrationDetail(w io.Writer, data json.RawMessage) error {
+	var integ Integration
+	if err := json.Unmarshal(data, &integ); err != nil {
+		return fmt.Errorf("failed to parse integration: %w", err)
+	}
+
+	paused := "no"
+	if integ.Attributes.Paused {
+		paused = "yes"
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "ID:\t%s\n", src.ID)
-	fmt.Fprintf(tw, "Name:\t%s\n", src.Attributes.Name)
-	fmt.Fprintf(tw, "Type:\t%s\n", src.Attributes.Type)
-	fmt.Fprintf(tw, "Webhook URL:\t%s\n", src.Attributes.WebhookURL)
-	fmt.Fprintf(tw, "Created At:\t%s\n", formatTime(src.Attributes.CreatedAt))
+	fmt.Fprintf(tw, "ID:\t%s\n", integ.ID)
+	fmt.Fprintf(tw, "Name:\t%s\n", integ.Attributes.Name)
+	fmt.Fprintf(tw, "Webhook URL:\t%s\n", integ.Attributes.WebhookURL)
+	fmt.Fprintf(tw, "Paused:\t%s\n", paused)
+	fmt.Fprintf(tw, "Team Name:\t%s\n", orDash(integ.Attributes.TeamName))
 	return tw.Flush()
 }
 
 func RenderDeleteConfirmation(w io.Writer, id string) error {
-	_, err := fmt.Fprintf(w, "Deleted source %s\n", id)
+	_, err := fmt.Fprintf(w, "Deleted integration %s\n", id)
 	return err
 }
 

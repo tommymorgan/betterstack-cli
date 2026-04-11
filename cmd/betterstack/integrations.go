@@ -10,25 +10,26 @@ import (
 	"github.com/tommymorgan/betterstack-cli/internal/output"
 )
 
-var sourcesCmd = &cobra.Command{
-	Use:   "sources",
-	Short: "Manage BetterStack sources (webhook integrations)",
+var integrationsCmd = &cobra.Command{
+	Use:   "integrations",
+	Short: "Manage BetterStack integrations",
 }
 
-var sourcesListCmd = &cobra.Command{
+var integrationsListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List sources",
+	Short: "List integrations",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token, err := config.ResolveToken()
 		if err != nil {
 			return err
 		}
 
+		integrationType, _ := cmd.Flags().GetString("type")
 		limit, _ := cmd.Flags().GetInt("limit")
 		jsonOutput, _ := cmd.Root().PersistentFlags().GetBool("json")
 
 		c := client.New(token, Version)
-		results, err := c.ListSources(context.Background(), limit)
+		results, err := c.ListIntegrations(context.Background(), integrationType, limit)
 		if err != nil {
 			return err
 		}
@@ -37,13 +38,13 @@ var sourcesListCmd = &cobra.Command{
 		if jsonOutput {
 			return output.RenderJSON(w, results)
 		}
-		return output.RenderSourcesTable(w, results)
+		return output.RenderIntegrationsTable(w, results)
 	},
 }
 
-var sourcesGetCmd = &cobra.Command{
+var integrationsGetCmd = &cobra.Command{
 	Use:   "get <id>",
-	Short: "Get a single source",
+	Short: "Get a single integration",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token, err := config.ResolveToken()
@@ -51,10 +52,11 @@ var sourcesGetCmd = &cobra.Command{
 			return err
 		}
 
+		integrationType, _ := cmd.Flags().GetString("type")
 		jsonOutput, _ := cmd.Root().PersistentFlags().GetBool("json")
 
 		c := client.New(token, Version)
-		result, err := c.GetSource(context.Background(), args[0])
+		result, err := c.GetIntegration(context.Background(), integrationType, args[0])
 		if err != nil {
 			return err
 		}
@@ -63,25 +65,25 @@ var sourcesGetCmd = &cobra.Command{
 		if jsonOutput {
 			return output.RenderJSON(w, result)
 		}
-		return output.RenderSourceDetail(w, result)
+		return output.RenderIntegrationDetail(w, result)
 	},
 }
 
-var sourcesCreateCmd = &cobra.Command{
+var integrationsCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a new source",
+	Short: "Create a new integration",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token, err := config.ResolveToken()
 		if err != nil {
 			return err
 		}
 
+		integrationType, _ := cmd.Flags().GetString("type")
 		name, _ := cmd.Flags().GetString("name")
-		sourceType, _ := cmd.Flags().GetString("type")
 		jsonOutput, _ := cmd.Root().PersistentFlags().GetBool("json")
 
 		c := client.New(token, Version)
-		result, err := c.CreateSource(context.Background(), name, sourceType)
+		result, err := c.CreateIntegration(context.Background(), integrationType, name)
 		if err != nil {
 			return err
 		}
@@ -90,13 +92,13 @@ var sourcesCreateCmd = &cobra.Command{
 		if jsonOutput {
 			return output.RenderJSON(w, result)
 		}
-		return output.RenderSourceDetail(w, result)
+		return output.RenderIntegrationDetail(w, result)
 	},
 }
 
-var sourcesDeleteCmd = &cobra.Command{
+var integrationsDeleteCmd = &cobra.Command{
 	Use:   "delete <id>",
-	Short: "Delete a source",
+	Short: "Delete an integration",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		yes, _ := cmd.Flags().GetBool("yes")
@@ -109,10 +111,11 @@ var sourcesDeleteCmd = &cobra.Command{
 			return err
 		}
 
+		integrationType, _ := cmd.Flags().GetString("type")
 		jsonOutput, _ := cmd.Root().PersistentFlags().GetBool("json")
 
 		c := client.New(token, Version)
-		if err := c.DeleteSource(context.Background(), args[0]); err != nil {
+		if err := c.DeleteIntegration(context.Background(), integrationType, args[0]); err != nil {
 			return err
 		}
 
@@ -125,18 +128,19 @@ var sourcesDeleteCmd = &cobra.Command{
 }
 
 func init() {
-	sourcesListCmd.Flags().Int("limit", 0, "Maximum number of results")
+	for _, cmd := range []*cobra.Command{integrationsListCmd, integrationsGetCmd, integrationsCreateCmd, integrationsDeleteCmd} {
+		cmd.Flags().String("type", "", "Integration type (e.g., aws-cloudwatch)")
+		cmd.MarkFlagRequired("type")
+	}
 
-	sourcesCreateCmd.Flags().String("name", "", "Name for the source")
-	sourcesCreateCmd.Flags().String("type", "", "Source type (e.g., amazon_cloudwatch, datadog)")
-	sourcesCreateCmd.MarkFlagRequired("name")
-	sourcesCreateCmd.MarkFlagRequired("type")
+	integrationsListCmd.Flags().Int("limit", 0, "Maximum number of results")
+	integrationsCreateCmd.Flags().String("name", "", "Name for the integration")
+	integrationsCreateCmd.MarkFlagRequired("name")
+	integrationsDeleteCmd.Flags().Bool("yes", false, "Confirm destructive operation")
 
-	sourcesDeleteCmd.Flags().Bool("yes", false, "Confirm destructive operation")
-
-	sourcesCmd.AddCommand(sourcesListCmd)
-	sourcesCmd.AddCommand(sourcesGetCmd)
-	sourcesCmd.AddCommand(sourcesCreateCmd)
-	sourcesCmd.AddCommand(sourcesDeleteCmd)
-	rootCmd.AddCommand(sourcesCmd)
+	integrationsCmd.AddCommand(integrationsListCmd)
+	integrationsCmd.AddCommand(integrationsGetCmd)
+	integrationsCmd.AddCommand(integrationsCreateCmd)
+	integrationsCmd.AddCommand(integrationsDeleteCmd)
+	rootCmd.AddCommand(integrationsCmd)
 }

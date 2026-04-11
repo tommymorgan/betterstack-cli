@@ -353,44 +353,44 @@ func TestRenderMonitorDetail_ShowsKeyValuePairs(t *testing.T) {
 	}
 }
 
-func TestRenderSourcesTable_ShowsCorrectColumns(t *testing.T) {
+func TestRenderIntegrationsTable_ShowsCorrectColumns(t *testing.T) {
 	data := []json.RawMessage{
 		json.RawMessage(`{
 			"id": "1",
 			"attributes": {
 				"name": "dev-cloudwatch",
-				"type": "amazon_cloudwatch",
-				"webhook_url": "https://uptime.betterstack.com/hook/abc123"
+				"webhook_url": "https://uptime.betterstack.com/hook/abc123",
+				"paused": false
 			}
 		}`),
 	}
 
 	var buf bytes.Buffer
-	if err := RenderSourcesTable(&buf, data); err != nil {
+	if err := RenderIntegrationsTable(&buf, data); err != nil {
 		t.Fatal(err)
 	}
 
 	output := buf.String()
-	for _, col := range []string{"ID", "NAME", "TYPE", "WEBHOOK URL"} {
+	for _, col := range []string{"ID", "NAME", "WEBHOOK URL", "PAUSED"} {
 		if !strings.Contains(output, col) {
 			t.Errorf("missing column header %q in output:\n%s", col, output)
 		}
 	}
 
 	if !strings.Contains(output, "dev-cloudwatch") {
-		t.Error("missing source name")
-	}
-	if !strings.Contains(output, "amazon_cloudwatch") {
-		t.Error("missing source type")
+		t.Error("missing integration name")
 	}
 	if !strings.Contains(output, "https://uptime.betterstack.com/hook/abc123") {
 		t.Error("missing webhook URL")
 	}
+	if !strings.Contains(output, "no") {
+		t.Error("missing paused status")
+	}
 }
 
-func TestRenderSourcesTable_EmptyData(t *testing.T) {
+func TestRenderIntegrationsTable_EmptyData(t *testing.T) {
 	var buf bytes.Buffer
-	if err := RenderSourcesTable(&buf, nil); err != nil {
+	if err := RenderIntegrationsTable(&buf, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -407,8 +407,8 @@ func TestRenderDeleteConfirmation_ShowsDeletedMessage(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "Deleted source 42") {
-		t.Errorf("expected 'Deleted source 42', got: %s", output)
+	if !strings.Contains(output, "Deleted integration 42") {
+		t.Errorf("expected 'Deleted integration 42', got: %s", output)
 	}
 }
 
@@ -430,26 +430,36 @@ func TestRenderDeleteConfirmationJSON_ShowsStructuredOutput(t *testing.T) {
 	}
 }
 
-func TestRenderSourceDetail_ShowsKeyValuePairs(t *testing.T) {
+func TestRenderIntegrationDetail_ShowsKeyValuePairsInOrder(t *testing.T) {
 	data := json.RawMessage(`{
 		"id": "42",
 		"attributes": {
 			"name": "prod-cloudwatch",
-			"type": "amazon_cloudwatch",
 			"webhook_url": "https://uptime.betterstack.com/hook/xyz789",
-			"created_at": "2026-04-10T14:30:00Z"
+			"paused": true,
+			"team_name": "ops"
 		}
 	}`)
 
 	var buf bytes.Buffer
-	if err := RenderSourceDetail(&buf, data); err != nil {
+	if err := RenderIntegrationDetail(&buf, data); err != nil {
 		t.Fatal(err)
 	}
 
 	output := buf.String()
-	for _, expected := range []string{"42", "prod-cloudwatch", "amazon_cloudwatch", "https://uptime.betterstack.com/hook/xyz789", "2026-04-10 14:30:00 UTC"} {
+	for _, expected := range []string{"42", "prod-cloudwatch", "https://uptime.betterstack.com/hook/xyz789", "yes", "ops"} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("expected %q in detail output:\n%s", expected, output)
 		}
+	}
+
+	// Verify field order: ID before Name before Webhook URL before Paused before Team Name
+	idIdx := strings.Index(output, "ID:")
+	nameIdx := strings.Index(output, "Name:")
+	webhookIdx := strings.Index(output, "Webhook URL:")
+	pausedIdx := strings.Index(output, "Paused:")
+	teamIdx := strings.Index(output, "Team Name:")
+	if !(idIdx < nameIdx && nameIdx < webhookIdx && webhookIdx < pausedIdx && pausedIdx < teamIdx) {
+		t.Errorf("fields not in expected order (ID, Name, Webhook URL, Paused, Team Name):\n%s", output)
 	}
 }

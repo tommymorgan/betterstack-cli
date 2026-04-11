@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,10 +18,30 @@ const (
 	defaultTimeout   = 30 * time.Second
 	maxRetries       = 3
 	uptimeBaseURL    = "https://uptime.betterstack.com"
-	incidentsPath    = "/api/v3/incidents"
-	monitorsPath     = "/api/v2/monitors"
-	sourcesPath      = "/api/v2/sources"
+	incidentsPath = "/api/v3/incidents"
+	monitorsPath  = "/api/v2/monitors"
 )
+
+var integrationPaths = map[string]string{
+	"aws-cloudwatch": "/api/v2/aws-cloudwatch-integrations",
+}
+
+func SupportedIntegrationTypes() []string {
+	types := make([]string, 0, len(integrationPaths))
+	for k := range integrationPaths {
+		types = append(types, k)
+	}
+	return types
+}
+
+func resolveIntegrationPath(integrationType string) (string, error) {
+	path, ok := integrationPaths[integrationType]
+	if !ok {
+		return "", fmt.Errorf("unknown integration type %q; supported types: %s",
+			integrationType, strings.Join(SupportedIntegrationTypes(), ", "))
+	}
+	return path, nil
+}
 
 type Client struct {
 	token      string
@@ -138,27 +159,42 @@ func (c *Client) GetMonitor(ctx context.Context, id string) (json.RawMessage, er
 	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, monitorsPath, id))
 }
 
-func (c *Client) ListSources(ctx context.Context, limit int) ([]json.RawMessage, error) {
-	return c.fetchAll(ctx, c.baseURL+sourcesPath, nil, limit)
+func (c *Client) ListIntegrations(ctx context.Context, integrationType string, limit int) ([]json.RawMessage, error) {
+	path, err := resolveIntegrationPath(integrationType)
+	if err != nil {
+		return nil, err
+	}
+	return c.fetchAll(ctx, c.baseURL+path, nil, limit)
 }
 
-func (c *Client) GetSource(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, sourcesPath, id))
+func (c *Client) GetIntegration(ctx context.Context, integrationType, id string) (json.RawMessage, error) {
+	path, err := resolveIntegrationPath(integrationType)
+	if err != nil {
+		return nil, err
+	}
+	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, path, id))
 }
 
-func (c *Client) CreateSource(ctx context.Context, name, sourceType string) (json.RawMessage, error) {
+func (c *Client) CreateIntegration(ctx context.Context, integrationType, name string) (json.RawMessage, error) {
+	path, err := resolveIntegrationPath(integrationType)
+	if err != nil {
+		return nil, err
+	}
 	payload, err := json.Marshal(map[string]string{
 		"name": name,
-		"type": sourceType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
-	return c.postOne(ctx, c.baseURL+sourcesPath, bytes.NewReader(payload))
+	return c.postOne(ctx, c.baseURL+path, bytes.NewReader(payload))
 }
 
-func (c *Client) DeleteSource(ctx context.Context, id string) error {
-	return c.deleteOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, sourcesPath, id))
+func (c *Client) DeleteIntegration(ctx context.Context, integrationType, id string) error {
+	path, err := resolveIntegrationPath(integrationType)
+	if err != nil {
+		return err
+	}
+	return c.deleteOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, path, id))
 }
 
 func (c *Client) fetchAll(ctx context.Context, endpoint string, params url.Values, limit int) ([]json.RawMessage, error) {

@@ -342,17 +342,17 @@ func TestClient_DeleteRequestSendsNoBody(t *testing.T) {
 	}
 }
 
-func TestClient_ListSourcesSendsToCorrectEndpoint(t *testing.T) {
+func TestClient_ListIntegrationsSendsToCorrectEndpoint(t *testing.T) {
 	var gotPath, gotMethod string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotMethod = r.Method
-		fmt.Fprint(w, `{"data":[{"id":"1","attributes":{"name":"CloudWatch","type":"amazon_cloudwatch","webhook_url":"https://example.com/hook"}}]}`)
+		fmt.Fprint(w, `{"data":[{"id":"1","attributes":{"name":"CloudWatch","webhook_url":"https://example.com/hook","paused":false}}]}`)
 	}))
 	defer srv.Close()
 
 	c := New("token", "dev").withBaseURL(srv.URL)
-	results, err := c.ListSources(context.Background(), 0)
+	results, err := c.ListIntegrations(context.Background(), "aws-cloudwatch", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,30 +360,30 @@ func TestClient_ListSourcesSendsToCorrectEndpoint(t *testing.T) {
 	if gotMethod != "GET" {
 		t.Errorf("method = %q, want GET", gotMethod)
 	}
-	if gotPath != sourcesPath {
-		t.Errorf("path = %q, want %q", gotPath, sourcesPath)
+	if gotPath != "/api/v2/aws-cloudwatch-integrations" {
+		t.Errorf("path = %q, want /api/v2/aws-cloudwatch-integrations", gotPath)
 	}
 	if len(results) != 1 {
 		t.Errorf("got %d results, want 1", len(results))
 	}
 }
 
-func TestClient_GetSourceSendsToCorrectEndpoint(t *testing.T) {
+func TestClient_GetIntegrationSendsToCorrectEndpoint(t *testing.T) {
 	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		fmt.Fprint(w, `{"data":{"id":"42","attributes":{"name":"CloudWatch","type":"amazon_cloudwatch","webhook_url":"https://example.com/hook"}}}`)
+		fmt.Fprint(w, `{"data":{"id":"42","attributes":{"name":"CloudWatch","webhook_url":"https://example.com/hook","paused":false}}}`)
 	}))
 	defer srv.Close()
 
 	c := New("token", "dev").withBaseURL(srv.URL)
-	result, err := c.GetSource(context.Background(), "42")
+	result, err := c.GetIntegration(context.Background(), "aws-cloudwatch", "42")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if gotPath != sourcesPath+"/42" {
-		t.Errorf("path = %q, want %q", gotPath, sourcesPath+"/42")
+	if gotPath != "/api/v2/aws-cloudwatch-integrations/42" {
+		t.Errorf("path = %q, want /api/v2/aws-cloudwatch-integrations/42", gotPath)
 	}
 
 	var parsed map[string]interface{}
@@ -395,7 +395,7 @@ func TestClient_GetSourceSendsToCorrectEndpoint(t *testing.T) {
 	}
 }
 
-func TestClient_CreateSourceSendsPostWithJSONBody(t *testing.T) {
+func TestClient_CreateIntegrationSendsPostWithJSONBody(t *testing.T) {
 	var gotPath, gotMethod, gotContentType string
 	var gotBody map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -407,12 +407,12 @@ func TestClient_CreateSourceSendsPostWithJSONBody(t *testing.T) {
 			t.Errorf("failed to parse request body: %v", err)
 		}
 		w.WriteHeader(http.StatusCreated)
-		fmt.Fprint(w, `{"data":{"id":"1","attributes":{"name":"dev-cw","type":"amazon_cloudwatch","webhook_url":"https://uptime.betterstack.com/hook/abc123"}}}`)
+		fmt.Fprint(w, `{"data":{"id":"1","attributes":{"name":"dev-cw","webhook_url":"https://uptime.betterstack.com/hook/abc123","paused":false}}}`)
 	}))
 	defer srv.Close()
 
 	c := New("token", "dev").withBaseURL(srv.URL)
-	result, err := c.CreateSource(context.Background(), "dev-cw", "amazon_cloudwatch")
+	result, err := c.CreateIntegration(context.Background(), "aws-cloudwatch", "dev-cw")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,8 +420,8 @@ func TestClient_CreateSourceSendsPostWithJSONBody(t *testing.T) {
 	if gotMethod != "POST" {
 		t.Errorf("method = %q, want POST", gotMethod)
 	}
-	if gotPath != sourcesPath {
-		t.Errorf("path = %q, want %q", gotPath, sourcesPath)
+	if gotPath != "/api/v2/aws-cloudwatch-integrations" {
+		t.Errorf("path = %q, want /api/v2/aws-cloudwatch-integrations", gotPath)
 	}
 	if gotContentType != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", gotContentType)
@@ -429,15 +429,12 @@ func TestClient_CreateSourceSendsPostWithJSONBody(t *testing.T) {
 	if gotBody["name"] != "dev-cw" {
 		t.Errorf("body name = %q, want dev-cw", gotBody["name"])
 	}
-	if gotBody["type"] != "amazon_cloudwatch" {
-		t.Errorf("body type = %q, want amazon_cloudwatch", gotBody["type"])
-	}
 	if result == nil {
 		t.Error("expected non-nil result")
 	}
 }
 
-func TestClient_DeleteSourceSendsDeleteAndSucceedsOn204(t *testing.T) {
+func TestClient_DeleteIntegrationSendsDeleteAndSucceedsOn204(t *testing.T) {
 	var gotPath, gotMethod string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
@@ -447,7 +444,7 @@ func TestClient_DeleteSourceSendsDeleteAndSucceedsOn204(t *testing.T) {
 	defer srv.Close()
 
 	c := New("token", "dev").withBaseURL(srv.URL)
-	err := c.DeleteSource(context.Background(), "42")
+	err := c.DeleteIntegration(context.Background(), "aws-cloudwatch", "42")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,8 +452,45 @@ func TestClient_DeleteSourceSendsDeleteAndSucceedsOn204(t *testing.T) {
 	if gotMethod != "DELETE" {
 		t.Errorf("method = %q, want DELETE", gotMethod)
 	}
-	if gotPath != sourcesPath+"/42" {
-		t.Errorf("path = %q, want %q", gotPath, sourcesPath+"/42")
+	if gotPath != "/api/v2/aws-cloudwatch-integrations/42" {
+		t.Errorf("path = %q, want /api/v2/aws-cloudwatch-integrations/42", gotPath)
+	}
+}
+
+func TestClient_UnknownIntegrationTypeReturnsError(t *testing.T) {
+	c := New("token", "dev")
+
+	_, err := c.ListIntegrations(context.Background(), "nonexistent", 0)
+	if err == nil {
+		t.Fatal("expected error for unknown integration type")
+	}
+	if !strings.Contains(err.Error(), "nonexistent") {
+		t.Errorf("error should name the invalid type, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "aws-cloudwatch") {
+		t.Errorf("error should list supported types, got: %s", err.Error())
+	}
+}
+
+func TestClient_DeleteIntegrationReturnsErrorOn404(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"errors":["not found"]}`)
+	}))
+	defer srv.Close()
+
+	c := New("token", "dev").withBaseURL(srv.URL)
+	err := c.DeleteIntegration(context.Background(), "aws-cloudwatch", "999")
+	if err == nil {
+		t.Fatal("expected error for 404")
+	}
+
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.StatusCode != 404 {
+		t.Errorf("got status %d, want 404", apiErr.StatusCode)
 	}
 }
 

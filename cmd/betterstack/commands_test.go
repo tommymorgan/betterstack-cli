@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func setupTestServer(t *testing.T) *httptest.Server {
@@ -41,30 +43,31 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		case strings.HasPrefix(r.URL.Path, "/api/v2/monitors/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v2/monitors/")
 			fmt.Fprintf(w, `{"data":{"id":"%s","attributes":{"pronounceable_name":"Monitor %s","url":"https://example.com","status":"up","check_frequency":30}}}`, id, id)
-		case r.URL.Path == "/api/v2/sources" && r.Method == "GET":
+		case r.URL.Path == "/api/v2/aws-cloudwatch-integrations" && r.Method == "GET":
 			fmt.Fprint(w, `{"data":[{
 				"id":"10",
 				"attributes":{
 					"name":"dev-cloudwatch",
-					"type":"amazon_cloudwatch",
-					"webhook_url":"https://uptime.betterstack.com/hook/abc123"
+					"webhook_url":"https://uptime.betterstack.com/hook/abc123",
+					"paused":false,
+					"team_name":"ops"
 				}
 			}]}`)
-		case r.URL.Path == "/api/v2/sources" && r.Method == "POST":
+		case r.URL.Path == "/api/v2/aws-cloudwatch-integrations" && r.Method == "POST":
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprint(w, `{"data":{
 				"id":"20",
 				"attributes":{
-					"name":"new-source",
-					"type":"datadog",
+					"name":"new-integration",
 					"webhook_url":"https://uptime.betterstack.com/hook/new123",
-					"created_at":"2026-04-10T14:30:00Z"
+					"paused":false,
+					"team_name":"ops"
 				}
 			}}`)
-		case strings.HasPrefix(r.URL.Path, "/api/v2/sources/") && r.Method == "GET":
-			id := strings.TrimPrefix(r.URL.Path, "/api/v2/sources/")
-			fmt.Fprintf(w, `{"data":{"id":"%s","attributes":{"name":"Source %s","type":"amazon_cloudwatch","webhook_url":"https://uptime.betterstack.com/hook/xyz","created_at":"2026-04-10T14:30:00Z"}}}`, id, id)
-		case strings.HasPrefix(r.URL.Path, "/api/v2/sources/") && r.Method == "DELETE":
+		case strings.HasPrefix(r.URL.Path, "/api/v2/aws-cloudwatch-integrations/") && r.Method == "GET":
+			id := strings.TrimPrefix(r.URL.Path, "/api/v2/aws-cloudwatch-integrations/")
+			fmt.Fprintf(w, `{"data":{"id":"%s","attributes":{"name":"Integration %s","webhook_url":"https://uptime.betterstack.com/hook/xyz","paused":false,"team_name":"ops"}}}`, id, id)
+		case strings.HasPrefix(r.URL.Path, "/api/v2/aws-cloudwatch-integrations/") && r.Method == "DELETE":
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			w.WriteHeader(404)
@@ -82,7 +85,11 @@ func executeCommand(t *testing.T, args ...string) (string, string, error) {
 	// Reset persistent flags to avoid state leaking between tests
 	rootCmd.PersistentFlags().Set("json", "false")
 	// Reset subcommand flags that may leak between tests
-	sourcesDeleteCmd.Flags().Set("yes", "false")
+	integrationsDeleteCmd.Flags().Set("yes", "false")
+	for _, sub := range []*cobra.Command{integrationsListCmd, integrationsGetCmd, integrationsCreateCmd, integrationsDeleteCmd} {
+		sub.Flags().Set("type", "")
+	}
+	integrationsCreateCmd.Flags().Set("name", "")
 	err := rootCmd.Execute()
 	return stdout.String(), stderr.String(), err
 }
@@ -107,7 +114,7 @@ func TestHelp_ShowsAvailableCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, cmd := range []string{"incidents", "monitors", "version"} {
+	for _, cmd := range []string{"incidents", "integrations", "monitors", "version"} {
 		if !strings.Contains(out, cmd) {
 			t.Errorf("help output missing command %q", cmd)
 		}
@@ -334,33 +341,33 @@ func TestEmptyResults_ShowsEmptyJSONArray(t *testing.T) {
 	}
 }
 
-func TestSourcesList_ShowsTableWithIDNameTypeWebhookURL(t *testing.T) {
+func TestIntegrationsList_ShowsTableWithIDNameWebhookURLPaused(t *testing.T) {
 	srv := setupTestServer(t)
 	defer srv.Close()
 
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
 
-	out, _, err := executeCommand(t, "sources", "list")
+	out, _, err := executeCommand(t, "integrations", "list", "--type", "aws-cloudwatch")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, expected := range []string{"10", "dev-cloudwatch", "amazon_cloudwatch", "https://uptime.betterstack.com/hook/abc123"} {
+	for _, expected := range []string{"10", "dev-cloudwatch", "https://uptime.betterstack.com/hook/abc123", "no"} {
 		if !strings.Contains(out, expected) {
 			t.Errorf("expected %q in output:\n%s", expected, out)
 		}
 	}
 }
 
-func TestSourcesList_JSONOutput(t *testing.T) {
+func TestIntegrationsList_JSONOutput(t *testing.T) {
 	srv := setupTestServer(t)
 	defer srv.Close()
 
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
 
-	out, _, err := executeCommand(t, "sources", "list", "--json")
+	out, _, err := executeCommand(t, "integrations", "list", "--type", "aws-cloudwatch", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,33 +378,33 @@ func TestSourcesList_JSONOutput(t *testing.T) {
 	}
 }
 
-func TestSourcesGet_ShowsSourceDetailsWithWebhookURL(t *testing.T) {
+func TestIntegrationsGet_ShowsDetailWithWebhookURLAndTeamName(t *testing.T) {
 	srv := setupTestServer(t)
 	defer srv.Close()
 
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
 
-	out, _, err := executeCommand(t, "sources", "get", "42")
+	out, _, err := executeCommand(t, "integrations", "get", "--type", "aws-cloudwatch", "42")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, expected := range []string{"42", "Source 42", "amazon_cloudwatch", "https://uptime.betterstack.com/hook/xyz", "2026-04-10 14:30:00 UTC"} {
+	for _, expected := range []string{"42", "Integration 42", "https://uptime.betterstack.com/hook/xyz", "no", "ops"} {
 		if !strings.Contains(out, expected) {
 			t.Errorf("expected %q in output:\n%s", expected, out)
 		}
 	}
 }
 
-func TestSourcesGet_JSONOutput(t *testing.T) {
+func TestIntegrationsGet_JSONOutput(t *testing.T) {
 	srv := setupTestServer(t)
 	defer srv.Close()
 
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
 
-	out, _, err := executeCommand(t, "sources", "get", "42", "--json")
+	out, _, err := executeCommand(t, "integrations", "get", "--type", "aws-cloudwatch", "42", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,42 +415,29 @@ func TestSourcesGet_JSONOutput(t *testing.T) {
 	}
 }
 
-func TestSourcesCreate_ShowsCreatedSourceWithWebhookURL(t *testing.T) {
+func TestIntegrationsCreate_ShowsCreatedIntegrationWithWebhookURL(t *testing.T) {
 	srv := setupTestServer(t)
 	defer srv.Close()
 
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
 
-	out, _, err := executeCommand(t, "sources", "create", "--name", "new-source", "--type", "datadog")
+	out, _, err := executeCommand(t, "integrations", "create", "--type", "aws-cloudwatch", "--name", "new-integration")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, expected := range []string{"20", "new-source", "datadog", "https://uptime.betterstack.com/hook/new123"} {
+	for _, expected := range []string{"20", "new-integration", "https://uptime.betterstack.com/hook/new123"} {
 		if !strings.Contains(out, expected) {
 			t.Errorf("expected %q in output:\n%s", expected, out)
 		}
 	}
 }
 
-func TestSourcesCreate_FailsWithoutRequiredFlags(t *testing.T) {
+func TestIntegrationsCreate_FailsWithoutTypeFlag(t *testing.T) {
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 
-	_, _, err := executeCommand(t, "sources", "create")
-	if err == nil {
-		t.Fatal("expected error when required flags not provided")
-	}
-
-	if !strings.Contains(err.Error(), "name") {
-		t.Errorf("error should mention missing flag, got: %s", err.Error())
-	}
-}
-
-func TestSourcesCreate_FailsWithoutTypeFlag(t *testing.T) {
-	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
-
-	_, _, err := executeCommand(t, "sources", "create", "--name", "test")
+	_, _, err := executeCommand(t, "integrations", "create", "--name", "test")
 	if err == nil {
 		t.Fatal("expected error when --type flag not provided")
 	}
@@ -453,31 +447,51 @@ func TestSourcesCreate_FailsWithoutTypeFlag(t *testing.T) {
 	}
 }
 
-func TestSourcesDelete_ShowsConfirmationMessage(t *testing.T) {
+func TestIntegrationsCreate_FailsWithoutNameFlag(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprint(w, `{"errors":["name is required"]}`)
+	}))
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+
+	_, _, err := executeCommand(t, "integrations", "create", "--type", "aws-cloudwatch")
+	if err == nil {
+		t.Fatal("expected error when --name flag not provided")
+	}
+
+	if !strings.Contains(err.Error(), "name") {
+		t.Errorf("error should mention missing --name flag, got: %s", err.Error())
+	}
+}
+
+func TestIntegrationsDelete_ShowsConfirmationMessage(t *testing.T) {
 	srv := setupTestServer(t)
 	defer srv.Close()
 
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
 
-	out, _, err := executeCommand(t, "sources", "delete", "42", "--yes")
+	out, _, err := executeCommand(t, "integrations", "delete", "--type", "aws-cloudwatch", "42", "--yes")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(out, "Deleted source 42") {
+	if !strings.Contains(out, "Deleted integration 42") {
 		t.Errorf("expected confirmation message, got:\n%s", out)
 	}
 }
 
-func TestSourcesDelete_JSONOutput(t *testing.T) {
+func TestIntegrationsDelete_JSONOutput(t *testing.T) {
 	srv := setupTestServer(t)
 	defer srv.Close()
 
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
 
-	out, _, err := executeCommand(t, "sources", "delete", "42", "--yes", "--json")
+	out, _, err := executeCommand(t, "integrations", "delete", "--type", "aws-cloudwatch", "42", "--yes", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,10 +508,10 @@ func TestSourcesDelete_JSONOutput(t *testing.T) {
 	}
 }
 
-func TestSourcesDelete_FailsWithoutYesFlag(t *testing.T) {
+func TestIntegrationsDelete_FailsWithoutYesFlag(t *testing.T) {
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 
-	_, _, err := executeCommand(t, "sources", "delete", "42")
+	_, _, err := executeCommand(t, "integrations", "delete", "--type", "aws-cloudwatch", "42")
 	if err == nil {
 		t.Fatal("expected error when --yes flag not provided")
 	}
@@ -507,21 +521,38 @@ func TestSourcesDelete_FailsWithoutYesFlag(t *testing.T) {
 	}
 }
 
-func TestSourcesGet_RequiresIDArgument(t *testing.T) {
+func TestIntegrationsGet_RequiresIDArgument(t *testing.T) {
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 
-	_, _, err := executeCommand(t, "sources", "get")
+	_, _, err := executeCommand(t, "integrations", "get", "--type", "aws-cloudwatch")
 	if err == nil {
 		t.Fatal("expected error when no ID provided")
 	}
 }
 
-func TestSourcesDelete_RequiresIDArgument(t *testing.T) {
+func TestIntegrationsDelete_RequiresIDArgument(t *testing.T) {
 	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
 
-	_, _, err := executeCommand(t, "sources", "delete", "--yes")
+	_, _, err := executeCommand(t, "integrations", "delete", "--type", "aws-cloudwatch", "--yes")
 	if err == nil {
 		t.Fatal("expected error when no ID provided")
+	}
+}
+
+func TestIntegrations_UnknownTypeShowsSupportedTypes(t *testing.T) {
+	t.Setenv("BETTERSTACK_API_TOKEN", "test-token")
+	t.Setenv("BETTERSTACK_BASE_URL", "http://localhost:0")
+
+	_, _, err := executeCommand(t, "integrations", "list", "--type", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for unknown integration type")
+	}
+
+	if !strings.Contains(err.Error(), "nonexistent") {
+		t.Errorf("error should name the invalid type, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "aws-cloudwatch") {
+		t.Errorf("error should list supported types, got: %s", err.Error())
 	}
 }
 
