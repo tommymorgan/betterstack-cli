@@ -157,7 +157,7 @@ func TestClient_EnforcesRequestTimeout(t *testing.T) {
 	defer srv.Close()
 
 	c := New("token", "dev").withBaseURL(srv.URL)
-	c.httpClient.Timeout = 100 * time.Millisecond
+	c.httpClientField().Timeout = 100 * time.Millisecond
 
 	_, err := c.ListIncidents(context.Background(), IncidentListParams{}, 0)
 	if err == nil {
@@ -299,7 +299,7 @@ func TestClient_PostRequestSendsContentTypeJSON(t *testing.T) {
 
 	c := New("token", "dev").withBaseURL(srv.URL)
 	body := strings.NewReader(`{"name":"test","type":"amazon_cloudwatch"}`)
-	result, err := c.postOne(context.Background(), srv.URL+"/api/v2/sources", body)
+	result, err := c.t.postOne(context.Background(), srv.URL+"/api/v2/sources", body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestClient_DeleteRequestSendsNoBody(t *testing.T) {
 	defer srv.Close()
 
 	c := New("token", "dev").withBaseURL(srv.URL)
-	err := c.deleteOne(context.Background(), srv.URL+"/api/v2/sources/1")
+	err := c.t.deleteOne(context.Background(), srv.URL+"/api/v2/sources/1")
 	if err != nil {
 		t.Fatal(err)
 	}

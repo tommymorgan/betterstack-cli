@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,11 +14,12 @@ import (
 )
 
 const (
-	defaultTimeout   = 30 * time.Second
-	maxRetries       = 3
-	uptimeBaseURL    = "https://uptime.betterstack.com"
-	incidentsPath = "/api/v3/incidents"
-	monitorsPath  = "/api/v2/monitors"
+	defaultTimeout = 30 * time.Second
+	maxRetries     = 3
+	uptimeBaseURL  = "https://uptime.betterstack.com"
+	incidentsPath  = "/api/v3/incidents"
+	monitorsPath   = "/api/v2/monitors"
+	policiesPath   = "/api/v3/policies"
 )
 
 var integrationPaths = map[string]string{
@@ -43,38 +43,36 @@ func resolveIntegrationPath(integrationType string) (string, error) {
 	return path, nil
 }
 
+// Client is the uptime-host client. It talks to uptime.betterstack.com using
+// a BETTERSTACK_API_TOKEN-compatible token.
 type Client struct {
-	token      string
-	version    string
-	baseURL    string
-	httpClient *http.Client
+	t *transport
+}
+
+// uptimeBaseURLResolved returns the uptime base URL honoring the
+// BETTERSTACK_BASE_URL override for tests.
+func uptimeBaseURLResolved() string {
+	if override := os.Getenv("BETTERSTACK_BASE_URL"); override != "" {
+		return override
+	}
+	return uptimeBaseURL
 }
 
 func New(token, version string) *Client {
-	base := uptimeBaseURL
-	if override := os.Getenv("BETTERSTACK_BASE_URL"); override != "" {
-		base = override
-	}
-	return &Client{
-		token:   token,
-		version: version,
-		baseURL: base,
-		httpClient: &http.Client{
-			Timeout: defaultTimeout,
-		},
-	}
+	return &Client{t: newTransport(token, version, uptimeBaseURLResolved())}
 }
 
+// withBaseURL is a test helper that swaps the base URL without going through
+// the env-var override.
 func (c *Client) withBaseURL(baseURL string) *Client {
-	c.baseURL = baseURL
+	c.t.baseURL = baseURL
 	return c
 }
 
-type PaginatedResponse struct {
-	Data       []json.RawMessage `json:"data"`
-	Pagination struct {
-		Next *string `json:"next"`
-	} `json:"pagination"`
+// httpClientForTest exposes the underlying http.Client so tests can tweak
+// the timeout. Tests use this directly.
+func (c *Client) httpClientField() *http.Client {
+	return c.t.httpClient
 }
 
 type IncidentListParams struct {
@@ -109,11 +107,11 @@ func (c *Client) ListIncidents(ctx context.Context, params IncidentListParams, l
 		q.Set("acknowledged", strconv.FormatBool(*params.Acknowledged))
 	}
 
-	return c.fetchAll(ctx, c.baseURL+incidentsPath, q, limit)
+	return c.t.fetchAll(ctx, c.t.baseURL+incidentsPath, q, limit)
 }
 
 func (c *Client) GetIncident(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, incidentsPath, id))
+	return c.t.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, incidentsPath, id))
 }
 
 func (c *Client) ListMonitors(ctx context.Context, params MonitorListParams, limit int) ([]json.RawMessage, error) {
@@ -125,7 +123,7 @@ func (c *Client) ListMonitors(ctx context.Context, params MonitorListParams, lim
 		q.Set("pronounceable_name", params.PronounceableName)
 	}
 
-	results, err := c.fetchAll(ctx, c.baseURL+monitorsPath, q, limit)
+	results, err := c.t.fetchAll(ctx, c.t.baseURL+monitorsPath, q, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +154,7 @@ func filterByStatus(items []json.RawMessage, status string) []json.RawMessage {
 }
 
 func (c *Client) GetMonitor(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, monitorsPath, id))
+	return c.t.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, monitorsPath, id))
 }
 
 func (c *Client) ListIntegrations(ctx context.Context, integrationType string, limit int) ([]json.RawMessage, error) {
@@ -164,7 +162,7 @@ func (c *Client) ListIntegrations(ctx context.Context, integrationType string, l
 	if err != nil {
 		return nil, err
 	}
-	return c.fetchAll(ctx, c.baseURL+path, nil, limit)
+	return c.t.fetchAll(ctx, c.t.baseURL+path, nil, limit)
 }
 
 func (c *Client) GetIntegration(ctx context.Context, integrationType, id string) (json.RawMessage, error) {
@@ -172,7 +170,7 @@ func (c *Client) GetIntegration(ctx context.Context, integrationType, id string)
 	if err != nil {
 		return nil, err
 	}
-	return c.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, path, id))
+	return c.t.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, path, id))
 }
 
 func (c *Client) CreateIntegration(ctx context.Context, integrationType, name string) (json.RawMessage, error) {
@@ -180,13 +178,11 @@ func (c *Client) CreateIntegration(ctx context.Context, integrationType, name st
 	if err != nil {
 		return nil, err
 	}
-	payload, err := json.Marshal(map[string]string{
-		"name": name,
-	})
+	payload, err := json.Marshal(map[string]string{"name": name})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
-	return c.postOne(ctx, c.baseURL+path, bytes.NewReader(payload))
+	return c.t.postOne(ctx, c.t.baseURL+path, bytes.NewReader(payload))
 }
 
 func (c *Client) DeleteIntegration(ctx context.Context, integrationType, id string) error {
@@ -194,81 +190,11 @@ func (c *Client) DeleteIntegration(ctx context.Context, integrationType, id stri
 	if err != nil {
 		return err
 	}
-	return c.deleteOne(ctx, fmt.Sprintf("%s%s/%s", c.baseURL, path, id))
+	return c.t.deleteOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, path, id))
 }
 
-func (c *Client) fetchAll(ctx context.Context, endpoint string, params url.Values, limit int) ([]json.RawMessage, error) {
-	all := make([]json.RawMessage, 0)
-	nextURL := endpoint
-	if len(params) > 0 {
-		nextURL += "?" + params.Encode()
-	}
-
-	for nextURL != "" {
-		body, err := c.doRequestWithRetry(ctx, http.MethodGet, nextURL, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		var page PaginatedResponse
-		if err := json.Unmarshal(body, &page); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		all = append(all, page.Data...)
-
-		if limit > 0 && len(all) >= limit {
-			all = all[:limit]
-			break
-		}
-
-		if page.Pagination.Next != nil {
-			nextURL = *page.Pagination.Next
-		} else {
-			nextURL = ""
-		}
-	}
-
-	return all, nil
-}
-
-func (c *Client) fetchOne(ctx context.Context, endpoint string) (json.RawMessage, error) {
-	body, err := c.doRequestWithRetry(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var wrapper struct {
-		Data json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(body, &wrapper); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return wrapper.Data, nil
-}
-
-func (c *Client) postOne(ctx context.Context, endpoint string, reqBody io.Reader) (json.RawMessage, error) {
-	body, err := c.doRequestWithRetry(ctx, http.MethodPost, endpoint, reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	var wrapper struct {
-		Data json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(body, &wrapper); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return wrapper.Data, nil
-}
-
-func (c *Client) deleteOne(ctx context.Context, endpoint string) error {
-	_, err := c.doRequestWithRetry(ctx, http.MethodDelete, endpoint, nil)
-	return err
-}
-
+// APIError is the shared Go error type emitted by both the uptime and
+// telemetry clients on non-2xx responses.
 type APIError struct {
 	StatusCode int
 	Message    string
@@ -276,121 +202,4 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Message)
-}
-
-type retryableError struct {
-	apiError       *APIError
-	retryAfter     time.Duration
-	hasRetryHeader bool
-}
-
-func (e *retryableError) Error() string {
-	return e.apiError.Error()
-}
-
-func (c *Client) doRequestWithRetry(ctx context.Context, method, rawURL string, body io.Reader) ([]byte, error) {
-	var lastErr error
-	var bodyBytes []byte
-	if body != nil {
-		var err error
-		bodyBytes, err = io.ReadAll(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read request body: %w", err)
-		}
-	}
-
-	for attempt := range maxRetries {
-		var reqBody io.Reader
-		if bodyBytes != nil {
-			reqBody = bytes.NewReader(bodyBytes)
-		}
-
-		respBody, err := c.doRequest(ctx, method, rawURL, reqBody)
-		if err == nil {
-			return respBody, nil
-		}
-
-		re, ok := err.(*retryableError)
-		if !ok {
-			return nil, err
-		}
-		lastErr = re.apiError
-
-		if attempt == maxRetries-1 {
-			break
-		}
-
-		delay := re.retryAfter
-		if !re.hasRetryHeader {
-			delay = time.Duration(attempt+1) * time.Second
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(delay):
-		}
-	}
-
-	return nil, lastErr
-}
-
-func (c *Client) doRequest(ctx context.Context, method, rawURL string, body io.Reader) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, rawURL, body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "betterstack-cli/"+c.version)
-
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNoContent {
-		return nil, nil
-	}
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode == http.StatusTooManyRequests {
-		retryHeader := resp.Header.Get("Retry-After")
-		retryAfter := parseRetryAfter(retryHeader)
-		return nil, &retryableError{
-			apiError:       &APIError{StatusCode: resp.StatusCode, Message: string(respBody)},
-			retryAfter:     retryAfter,
-			hasRetryHeader: retryHeader != "",
-		}
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, &APIError{
-			StatusCode: resp.StatusCode,
-			Message:    string(respBody),
-		}
-	}
-
-	return respBody, nil
-}
-
-func parseRetryAfter(value string) time.Duration {
-	if value == "" {
-		return 0
-	}
-	seconds, err := strconv.Atoi(value)
-	if err != nil {
-		return 0
-	}
-	return time.Duration(seconds) * time.Second
 }
