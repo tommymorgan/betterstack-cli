@@ -9,8 +9,8 @@
 
 <!-- Living: features/authentication.feature::Telemetry commands prefer BETTERSTACK_TELEMETRY_TOKEN -->
 <!-- Action: extends -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry commands prefer BETTERSTACK_TELEMETRY_TOKEN
   Given the user has set both BETTERSTACK_API_TOKEN and BETTERSTACK_TELEMETRY_TOKEN
   When they run a telemetry command (logs-alerts, explorations, or logs-sources)
@@ -18,8 +18,8 @@ Scenario: Telemetry commands prefer BETTERSTACK_TELEMETRY_TOKEN
 
 <!-- Living: features/authentication.feature::Telemetry commands fall back to BETTERSTACK_API_TOKEN -->
 <!-- Action: extends -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry commands fall back to BETTERSTACK_API_TOKEN when telemetry token is unset
   Given the user has set BETTERSTACK_API_TOKEN but not BETTERSTACK_TELEMETRY_TOKEN
   When they run a telemetry command on an interactive (TTY) session
@@ -28,8 +28,8 @@ Scenario: Telemetry commands fall back to BETTERSTACK_API_TOKEN when telemetry t
 
 <!-- Living: features/authentication.feature::Telemetry fallback notice suppression -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry fallback notice is suppressed on non-TTY and when --quiet / BETTERSTACK_QUIET is set
   Given the user has set BETTERSTACK_API_TOKEN but not BETTERSTACK_TELEMETRY_TOKEN
   When the CLI runs in a non-TTY context (CI, piped) OR --quiet is passed OR BETTERSTACK_QUIET is set to a truthy value
@@ -38,8 +38,8 @@ Scenario: Telemetry fallback notice is suppressed on non-TTY and when --quiet / 
 
 <!-- Living: features/authentication.feature::Uptime commands never use the telemetry token -->
 <!-- Action: extends -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Uptime commands never use the telemetry token
   Given the user has set both BETTERSTACK_API_TOKEN and BETTERSTACK_TELEMETRY_TOKEN
   When they run an uptime command (incidents, monitors, integrations, policies)
@@ -47,8 +47,8 @@ Scenario: Uptime commands never use the telemetry token
 
 <!-- Living: features/authentication.feature::Uptime command with only telemetry token set -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Uptime command fails explicitly when only the telemetry token is set
   Given the user has BETTERSTACK_TELEMETRY_TOKEN set and BETTERSTACK_API_TOKEN unset (no config file)
   When they run an uptime command
@@ -58,8 +58,8 @@ Scenario: Uptime command fails explicitly when only the telemetry token is set
 
 <!-- Living: features/authentication.feature::Auth error names which env vars are set -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Auth error on telemetry command names which env vars are currently set
   Given the user has BETTERSTACK_API_TOKEN set but it is team-scoped to uptime only
   And BETTERSTACK_TELEMETRY_TOKEN is unset
@@ -71,8 +71,8 @@ Scenario: Auth error on telemetry command names which env vars are currently set
 
 <!-- Living: features/authentication.feature::Telemetry token config file precedence -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry token env var takes precedence over config file
   Given ~/.config/betterstack/config.yaml contains telemetry_api_token: "from-file"
   And BETTERSTACK_TELEMETRY_TOKEN is set to "from-env"
@@ -81,8 +81,8 @@ Scenario: Telemetry token env var takes precedence over config file
 
 <!-- Living: features/authentication.feature::Telemetry token from config file only -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry token resolved from config file when env is unset
   Given ~/.config/betterstack/config.yaml contains telemetry_api_token
   And BETTERSTACK_TELEMETRY_TOKEN is unset
@@ -92,8 +92,8 @@ Scenario: Telemetry token resolved from config file when env is unset
 
 <!-- Living: features/authentication.feature::Telemetry token env var only -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry token resolved from env when no config file has telemetry_api_token
   Given the config file does not contain telemetry_api_token
   And BETTERSTACK_TELEMETRY_TOKEN is set
@@ -104,8 +104,8 @@ Scenario: Telemetry token resolved from env when no config file has telemetry_ap
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Create a count-matching exploration with shorthand flags
   Given the user has a valid telemetry token configured
   When they run `explorations create --source-id <id> --pattern "AADSTS7000215" --name "INF-3017"`
@@ -114,8 +114,8 @@ Scenario: Create a count-matching exploration with shorthand flags
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Create an exploration from a raw JSON body file
   Given the user has a valid telemetry token configured
   And they have a JSON file describing a full exploration payload
@@ -125,8 +125,8 @@ Scenario: Create an exploration from a raw JSON body file
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --body-file - reads from stdin
   Given the user has a valid telemetry token configured
   When they pipe a JSON exploration payload into `explorations create --body-file -`
@@ -134,8 +134,8 @@ Scenario: --body-file - reads from stdin
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Shorthand flags and --body-file are mutually exclusive on explorations create
   Given the user has a valid telemetry token configured
   When they run `explorations create` with both a shorthand flag (e.g. --pattern) and --body-file
@@ -144,8 +144,8 @@ Scenario: Shorthand flags and --body-file are mutually exclusive on explorations
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --body-file path is unreadable or does not exist
   Given the user passes --body-file path/that/does/not/exist.json
   When the CLI validates the flag
@@ -154,8 +154,8 @@ Scenario: --body-file path is unreadable or does not exist
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --body-file contents are not valid JSON
   Given the user passes --body-file path/to/not-json.txt
   When the CLI reads and parses the file
@@ -164,8 +164,8 @@ Scenario: --body-file contents are not valid JSON
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --body-file contents are empty
   Given the user passes --body-file pointing at an empty file (or pipes empty stdin into --body-file -)
   When the CLI reads the content
@@ -174,8 +174,8 @@ Scenario: --body-file contents are empty
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --body-file contents exceed 10MB safety cap
   Given the user passes --body-file pointing at a file larger than 10MB (or pipes >10MB through stdin)
   When the CLI reads the content
@@ -184,8 +184,8 @@ Scenario: --body-file contents exceed 10MB safety cap
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: List explorations
   Given the user has a valid telemetry token configured
   When they run `explorations list`
@@ -193,8 +193,8 @@ Scenario: List explorations
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Get a single exploration by ID
   Given the user has a valid telemetry token configured
   When they run `explorations get <id>`
@@ -202,8 +202,8 @@ Scenario: Get a single exploration by ID
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Update an exploration via shorthand flags
   Given the user has a valid telemetry token configured
   And an existing exploration
@@ -213,8 +213,8 @@ Scenario: Update an exploration via shorthand flags
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Update an exploration via body file for fields outside the shorthand
   Given the user has a valid telemetry token configured
   When they run `explorations update <id> --body-file path/to/update.json`
@@ -223,8 +223,8 @@ Scenario: Update an exploration via body file for fields outside the shorthand
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Delete an exploration with no dependent alerts
   Given the user has a valid telemetry token configured
   And an exploration with zero alerts attached
@@ -233,8 +233,8 @@ Scenario: Delete an exploration with no dependent alerts
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Refuse to delete an exploration that has live alerts attached
   Given the user has a valid telemetry token configured
   And an exploration with one or more dependent alerts
@@ -249,8 +249,8 @@ Scenario: Refuse to delete an exploration that has live alerts attached
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Force-delete an exploration that has live alerts attached
   Given the user has a valid telemetry token configured
   And an exploration with dependent alerts
@@ -260,8 +260,8 @@ Scenario: Force-delete an exploration that has live alerts attached
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Refuse to delete without --yes
   Given the user has a valid telemetry token configured
   When they run `explorations delete <id>` without --yes
@@ -270,8 +270,8 @@ Scenario: Refuse to delete without --yes
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: DELETE fails after refcount precheck passed (concurrent dependency creation)
   Given the precheck found zero dependent alerts
   And a concurrent actor attaches a dependent alert before the DELETE is issued
@@ -282,8 +282,8 @@ Scenario: DELETE fails after refcount precheck passed (concurrent dependency cre
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Upsert creates when no exploration matches the name
   Given the user has a valid telemetry token configured
   And no existing exploration has the name "INF-3017"
@@ -293,8 +293,8 @@ Scenario: Upsert creates when no exploration matches the name
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Upsert updates when exactly one exploration matches the name
   Given the user has a valid telemetry token configured
   And exactly one exploration exists with the name "INF-3017" whose fields differ from the provided shorthand
@@ -304,8 +304,8 @@ Scenario: Upsert updates when exactly one exploration matches the name
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Upsert is a no-op when existing state already matches provided shorthand flags
   Given the user has a valid telemetry token configured
   And exactly one exploration named "INF-3017" exists whose fields corresponding to provided shorthand already equal the provided values
@@ -316,8 +316,8 @@ Scenario: Upsert is a no-op when existing state already matches provided shortha
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Upsert refuses when two or more explorations match the name
   Given the user has a valid telemetry token configured
   And two or more explorations exist with the same name
@@ -328,8 +328,8 @@ Scenario: Upsert refuses when two or more explorations match the name
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --upsert is incompatible with --body-file
   Given the user has a valid telemetry token configured
   When they run `explorations create --body-file path.json --upsert`
@@ -337,8 +337,8 @@ Scenario: --upsert is incompatible with --body-file
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Upsert is best-effort, not atomic
   Given --upsert found zero matches and the CLI issues the POST
   When a concurrent actor creates a resource with the same name between the list and the POST
@@ -347,8 +347,8 @@ Scenario: Upsert is best-effort, not atomic
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Upsert handles PATCH 404 as a race condition
   Given --upsert found exactly one match and the CLI issues a PATCH
   When the PATCH returns 404 (the matched resource was deleted between list and PATCH)
@@ -358,8 +358,8 @@ Scenario: Upsert handles PATCH 404 as a race condition
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Pattern with special characters is encoded safely into the where_condition
   Given the user passes --pattern containing quotes, backslashes, or regex metacharacters (e.g., `"; DROP *\.`)
   When the CLI builds the exploration's where_condition
@@ -370,8 +370,8 @@ Scenario: Pattern with special characters is encoded safely into the where_condi
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Create a logs-alert on an existing exploration
   Given the user has a valid telemetry token configured
   And an existing exploration ID and an existing escalation policy ID
@@ -382,8 +382,8 @@ Scenario: Create a logs-alert on an existing exploration
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: `logs-alerts create --help` documents the policy-routing opinion
   Given the user runs `logs-alerts create --help`
   Then the help text mentions that alerts route via escalation policies
@@ -392,8 +392,8 @@ Scenario: `logs-alerts create --help` documents the policy-routing opinion
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Duration flags accept Go-style duration strings with units
   Given the user has a valid telemetry token configured
   When they run a command with `--window 5m`, `--check-period 30s`, or `--recovery 2h`
@@ -402,8 +402,8 @@ Scenario: Duration flags accept Go-style duration strings with units
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Duration flags reject values without units
   Given the user runs a command with a bare number (e.g., `--window 300`)
   Then the CLI errors with exit code 3 showing the expected format with units
@@ -411,16 +411,16 @@ Scenario: Duration flags reject values without units
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Duration flags reject zero and negative values
   Given the user runs a command with `--window 0s` or `--window -5m`
   Then the CLI errors with exit code 3 explaining durations must be strictly positive
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Create a logs-alert from a raw JSON body file
   Given the user has a valid telemetry token configured
   When they run `logs-alerts create --exploration-id <eid> --body-file path/to/alert.json`
@@ -428,8 +428,8 @@ Scenario: Create a logs-alert from a raw JSON body file
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Shorthand flags and --body-file are mutually exclusive on logs-alerts create
   Given the user has a valid telemetry token configured
   When they run `logs-alerts create` with both shorthand flags (e.g. --threshold) and --body-file
@@ -437,8 +437,8 @@ Scenario: Shorthand flags and --body-file are mutually exclusive on logs-alerts 
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: List logs-alerts
   Given the user has a valid telemetry token configured
   When they run `logs-alerts list`
@@ -446,8 +446,8 @@ Scenario: List logs-alerts
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Filter logs-alerts by exploration
   Given the user has a valid telemetry token configured
   When they run `logs-alerts list --exploration-id <eid>`
@@ -455,8 +455,8 @@ Scenario: Filter logs-alerts by exploration
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Filter logs-alerts by escalation policy
   Given the user has a valid telemetry token configured
   When they run `logs-alerts list --policy-id <pid>`
@@ -464,8 +464,8 @@ Scenario: Filter logs-alerts by escalation policy
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Get a single logs-alert by ID
   Given the user has a valid telemetry token configured
   When they run `logs-alerts get <id>`
@@ -473,8 +473,8 @@ Scenario: Get a single logs-alert by ID
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Update a logs-alert via shorthand flags
   Given the user has a valid telemetry token configured
   And an existing logs-alert
@@ -484,8 +484,8 @@ Scenario: Update a logs-alert via shorthand flags
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Update a logs-alert via body file for fields outside the shorthand
   Given the user has a valid telemetry token configured
   When they run `logs-alerts update <id> --body-file path/to/update.json`
@@ -494,8 +494,8 @@ Scenario: Update a logs-alert via body file for fields outside the shorthand
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Delete a logs-alert
   Given the user has a valid telemetry token configured
   When they run `logs-alerts delete <id> --yes`
@@ -503,8 +503,8 @@ Scenario: Delete a logs-alert
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: logs-alerts delete rejects --force explicitly
   Given the user runs `logs-alerts delete <id> --yes --force`
   Then the CLI errors with exit code 3 explaining --force is only valid on commands with dependency checks (explorations delete, policies delete)
@@ -512,8 +512,8 @@ Scenario: logs-alerts delete rejects --force explicitly
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Upsert on logs-alerts scopes the name match to the target exploration
   Given the user has a valid telemetry token configured
   And an existing alert named "INF-3017" attached to exploration A
@@ -525,8 +525,8 @@ Scenario: Upsert on logs-alerts scopes the name match to the target exploration
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: List escalation policies
   Given the user has a valid uptime token configured
   When they run `policies list`
@@ -534,8 +534,8 @@ Scenario: List escalation policies
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Get a single policy by ID
   Given the user has a valid uptime token configured
   When they run `policies get <id>`
@@ -543,8 +543,8 @@ Scenario: Get a single policy by ID
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Create a policy from a JSON body file
   Given the user has a valid uptime token configured
   When they run `policies create --body-file path/to/policy.json`
@@ -552,16 +552,16 @@ Scenario: Create a policy from a JSON body file
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Policies create does not support --upsert
   Given the user runs `policies create --body-file path.json --upsert`
   Then the CLI errors with exit code 3 explaining --upsert is not supported for policies (policies require --body-file and the "shorthand OR body" rule rules out body-file upsert)
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Update a policy from a JSON body file
   Given the user has a valid uptime token configured
   When they run `policies update <id> --body-file path/to/update.json`
@@ -569,8 +569,8 @@ Scenario: Update a policy from a JSON body file
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Delete a policy with no dependent alerts
   Given the user has a valid uptime token configured
   And no logs-alerts reference the policy
@@ -579,8 +579,8 @@ Scenario: Delete a policy with no dependent alerts
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Refuse to delete a policy with dependent alerts
   Given the user has a valid uptime token configured
   And one or more logs-alerts reference the policy via escalation_target
@@ -595,8 +595,8 @@ Scenario: Refuse to delete a policy with dependent alerts
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Force-delete a policy with dependent alerts
   Given the user has a valid uptime token configured
   And a policy with dependent alerts
@@ -605,8 +605,8 @@ Scenario: Force-delete a policy with dependent alerts
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: DELETE fails after policy refcount precheck passed
   Given the policy precheck found zero dependent alerts
   And a concurrent actor creates a dependent alert before the DELETE
@@ -618,8 +618,8 @@ Scenario: DELETE fails after policy refcount precheck passed
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: List log sources
   Given the user has a valid telemetry token configured
   When they run `logs-sources list`
@@ -627,8 +627,8 @@ Scenario: List log sources
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Get a single log source by ID
   Given the user has a valid telemetry token configured
   When they run `logs-sources get <id>`
@@ -638,8 +638,8 @@ Scenario: Get a single log source by ID
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Durations render human-readable in table output
   Given any list or get command with a period field (e.g., check_period, query_period)
   When rendered as a table or curated detail view
@@ -647,8 +647,8 @@ Scenario: Durations render human-readable in table output
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Durations render as integer seconds in JSON output
   Given any list or get command with a period field
   When rendered as JSON with `--json`
@@ -656,8 +656,8 @@ Scenario: Durations render as integer seconds in JSON output
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: JSON output envelope is consistent across verbs
   Given any command with --json
   When the CLI renders the response
@@ -670,8 +670,8 @@ Scenario: JSON output envelope is consistent across verbs
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --json is a global flag
   Given any command
   When --json is passed at any position
@@ -680,8 +680,8 @@ Scenario: --json is a global flag
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Consistent error template for dependency conflicts
   Given any delete command refuses due to dependent resources
   When the CLI emits the error
@@ -691,8 +691,8 @@ Scenario: Consistent error template for dependency conflicts
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Exit code taxonomy
   Given any CLI invocation
   When the CLI terminates
@@ -705,8 +705,8 @@ Scenario: Exit code taxonomy
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: List commands fetch all pages by default
   Given any list command
   When the BetterStack API returns paginated results
@@ -719,8 +719,8 @@ Scenario: List commands fetch all pages by default
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry base URL
   Given the telemetry client is constructed
   When it issues a request
@@ -729,8 +729,8 @@ Scenario: Telemetry base URL
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Both clients honor Retry-After on 429 identically
   Given a client (uptime or telemetry) receives HTTP 429 with a Retry-After header
   When the client processes the response
@@ -739,8 +739,8 @@ Scenario: Both clients honor Retry-After on 429 identically
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Both clients apply a 30s request timeout
   Given a client (uptime or telemetry) issues a request
   When the request takes longer than 30 seconds
@@ -748,8 +748,8 @@ Scenario: Both clients apply a 30s request timeout
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Both clients set Bearer auth and emit identical error types on 4xx/5xx
   Given a client (uptime or telemetry) issues a request
   Then it sets an Authorization header with "Bearer <token>"
@@ -757,8 +757,8 @@ Scenario: Both clients set Bearer auth and emit identical error types on 4xx/5xx
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Telemetry token resolution
   Given config.ResolveTelemetryToken is called
   When BETTERSTACK_TELEMETRY_TOKEN is set (env)
@@ -774,8 +774,8 @@ Scenario: Telemetry token resolution
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Explorations endpoints
   Given the telemetry client
   When it issues exploration CRUD requests
@@ -787,8 +787,8 @@ Scenario: Explorations endpoints
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Count-matching exploration shorthand payload
   Given the user passed --source-id X --pattern Y --name Z
   When the client builds the create payload
@@ -801,8 +801,8 @@ Scenario: Count-matching exploration shorthand payload
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Source ID format
   Given the BetterStack API treats source IDs as numeric strings
   When the CLI accepts --source-id
@@ -812,8 +812,8 @@ Scenario: Source ID format
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --body-file sends contents verbatim
   Given the user passed --body-file path.json (or --body-file -)
   When the client issues the POST or PATCH
@@ -825,8 +825,8 @@ Scenario: --body-file sends contents verbatim
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Logs-alerts endpoints
   Given the telemetry client
   When it issues logs-alerts CRUD requests
@@ -838,8 +838,8 @@ Scenario: Logs-alerts endpoints
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Logs-alerts create payload from shorthand flags
   Given the user passed --exploration-id E --threshold N --window W --policy-id P --name Z
   When the client builds the create payload
@@ -854,8 +854,8 @@ Scenario: Logs-alerts create payload from shorthand flags
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Duration parsing
   Given a duration flag value (e.g., "5m", "30s", "2h")
   When the CLI parses it
@@ -868,8 +868,8 @@ Scenario: Duration parsing
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Escalation policies endpoints
   Given the uptime client
   When it issues policies CRUD requests
@@ -883,8 +883,8 @@ Scenario: Escalation policies endpoints
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Logs-sources endpoints
   Given the telemetry client
   When it issues source read requests
@@ -895,8 +895,8 @@ Scenario: Logs-sources endpoints
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Pre-delete refcount check on explorations delete (short-circuit via per_page=1)
   Given the user ran `explorations delete <id> --yes` without --force
   When the CLI processes the command
@@ -906,8 +906,8 @@ Scenario: Pre-delete refcount check on explorations delete (short-circuit via pe
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Pre-delete refcount check on policies delete (paginate until first match)
   Given the user ran `policies delete <id> --yes` without --force
   When the CLI processes the command
@@ -917,8 +917,8 @@ Scenario: Pre-delete refcount check on policies delete (paginate until first mat
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Refcount check is best-effort, not atomic
   Given the refcount check passes and the CLI issues the DELETE
   When a concurrent actor creates a dependent between the GET and the DELETE
@@ -929,8 +929,8 @@ Scenario: Refcount check is best-effort, not atomic
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --upsert flag implementation
   Given --upsert was passed with shorthand flags
   When the CLI processes the create command
@@ -943,8 +943,8 @@ Scenario: --upsert flag implementation
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --upsert is incompatible with --body-file
   Given --upsert and --body-file are both set
   When the CLI validates flags
@@ -953,8 +953,8 @@ Scenario: --upsert is incompatible with --body-file
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --upsert is not supported for policies
   Given the user passes --upsert with policies create
   When the CLI validates flags
@@ -964,8 +964,8 @@ Scenario: --upsert is not supported for policies
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Explorations table output
   Given a list of explorations
   When rendered as a table
@@ -974,8 +974,8 @@ Scenario: Explorations table output
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Logs-alerts table output
   Given a list of logs-alerts
   When rendered as a table
@@ -985,8 +985,8 @@ Scenario: Logs-alerts table output
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Policies table output
   Given a list of escalation policies
   When rendered as a table
@@ -995,8 +995,8 @@ Scenario: Policies table output
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Logs-sources table output
   Given a list of log sources
   When rendered as a table
@@ -1004,8 +1004,8 @@ Scenario: Logs-sources table output
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: Curated detail views for get commands
   Given any `<resource> get <id>` command (human mode)
   When rendered as a detail view
@@ -1016,8 +1016,8 @@ Scenario: Curated detail views for get commands
 
 <!-- Living: none (initial implementation) -->
 <!-- Action: creates -->
-<!-- Status: TODO -->
-<!-- Living updated: NO -->
+<!-- Status: DONE -->
+<!-- Living updated: YES -->
 Scenario: --yes and --force are orthogonal
   Given a delete command
   When flags are validated
