@@ -322,7 +322,11 @@ func runLogsAlertsUpsert(cmd *cobra.Command, c *client.TelemetryClient, explorat
 	if err != nil {
 		return wrapAPIErr(err)
 	}
-	matches := findAlertsByNameAndExploration(all, s.Name, explorationID)
+	matches, parseErr := findAlertsByNameAndExploration(all, s.Name, explorationID)
+	if parseErr != nil {
+		return errs.Wrap(errs.ExitUpstream,
+			fmt.Errorf("upsert cannot match alerts: malformed alert envelope: %w", parseErr))
+	}
 
 	switch len(matches) {
 	case 0:
@@ -337,7 +341,12 @@ func runLogsAlertsUpsert(cmd *cobra.Command, c *client.TelemetryClient, explorat
 		return renderUpsertAlert(cmd, "created", result)
 	case 1:
 		existing := matches[0]
-		if alertShorthandEquals(existing.raw, s) {
+		equal, parseErr := alertShorthandEquals(existing.raw, s)
+		if parseErr != nil {
+			return errs.Wrap(errs.ExitUpstream,
+				fmt.Errorf("could not verify match for upsert: malformed alert envelope: %w", parseErr))
+		}
+		if equal {
 			return renderUpsertAlert(cmd, "unchanged", existing.raw)
 		}
 		body, err := payload.BuildAlertPatch(s)
@@ -419,18 +428,40 @@ func parseAlert(raw json.RawMessage) (alertSummary, bool) {
 	}, true
 }
 
-func findAlertsByNameAndExploration(list []json.RawMessage, name, explorationID string) []alertSummary {
+// findAlertsByNameAndExploration filters alerts that match both name and
+// parent exploration. Returns an error on envelope-parse failure so upsert
+// does not silently POST a duplicate whose match was unreadable.
+func findAlertsByNameAndExploration(list []json.RawMessage, name, explorationID string) ([]alertSummary, error) {
 	var out []alertSummary
 	for _, item := range list {
-		a, ok := parseAlert(item)
-		if !ok {
-			continue
+		a, err := parseAlertStrict(item)
+		if err != nil {
+			return nil, err
 		}
 		if a.name == name && a.explorationID == explorationID {
 			out = append(out, a)
 		}
 	}
-	return out
+	return out, nil
+}
+
+// parseAlertStrict is the error-propagating variant used on paths where a
+// parse failure must not silently drop the alert (upsert matching, precheck).
+func parseAlertStrict(raw json.RawMessage) (alertSummary, error) {
+	var e alertEnvelope
+	if err := json.Unmarshal(raw, &e); err != nil {
+		return alertSummary{}, err
+	}
+	expID := e.Attributes.ExplorationID
+	if expID == "" {
+		expID = e.Relationships.Exploration.Data.ID
+	}
+	return alertSummary{
+		id:            e.ID,
+		name:          e.Attributes.Name,
+		explorationID: expID,
+		raw:           raw,
+	}, nil
 }
 
 func filterAlertsByExploration(list []json.RawMessage, explorationID string) []json.RawMessage {
@@ -461,30 +492,38 @@ func filterAlertsByPolicy(list []json.RawMessage, policyID string) []json.RawMes
 	return out
 }
 
-func alertShorthandEquals(raw json.RawMessage, s payload.AlertShorthand) bool {
+// alertShorthandEquals reports whether the existing alert already matches
+// every shorthand field the user provided. Returns (false, err) on parse
+// failure so upsert does not silently treat an unreadable match as
+// "unchanged" and clobber its fields on the next run.
+func alertShorthandEquals(raw json.RawMessage, s payload.AlertShorthand) (bool, error) {
 	var e alertEnvelope
 	if err := json.Unmarshal(raw, &e); err != nil {
-		return false
+		return false, err
 	}
 	if s.Name != "" && e.Attributes.Name != s.Name {
-		return false
+		return false, nil
 	}
 	if s.Threshold != nil && e.Attributes.Value != *s.Threshold {
-		return false
+		return false, nil
 	}
-	if s.WindowSecs > 0 && e.Attributes.CheckPeriod != s.WindowSecs {
-		return false
+	if s.WindowSecs > 0 {
+		// --window sets both check_period and query_period in create; equality
+		// must mirror that semantic.
+		if e.Attributes.CheckPeriod != s.WindowSecs || e.Attributes.QueryPeriod != s.WindowSecs {
+			return false, nil
+		}
 	}
 	if s.CheckSecs > 0 && e.Attributes.CheckPeriod != s.CheckSecs {
-		return false
+		return false, nil
 	}
 	if s.QuerySecs > 0 && e.Attributes.QueryPeriod != s.QuerySecs {
-		return false
+		return false, nil
 	}
 	if s.PolicyID != "" && string(e.Attributes.EscalationTarget.PolicyID) != s.PolicyID {
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
 func init() {

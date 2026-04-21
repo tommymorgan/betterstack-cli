@@ -77,6 +77,11 @@ func BuildAlertCreate(s AlertShorthand) ([]byte, error) {
 
 // BuildAlertPatch builds the PATCH body for `logs-alerts update`, containing
 // only the fields corresponding to user-provided shorthand flags.
+//
+// Field ordering matters: --window is a shortcut that sets BOTH check_period
+// and query_period, but --check-period and --query-period (when explicitly
+// provided) override those individual fields. This mirrors the create
+// semantics where --window is the fallback for each period.
 func BuildAlertPatch(s AlertShorthand) ([]byte, error) {
 	body := map[string]any{}
 	if s.Name != "" {
@@ -87,6 +92,8 @@ func BuildAlertPatch(s AlertShorthand) ([]byte, error) {
 		body["operator"] = "higher_than_or_equal"
 		body["alert_type"] = "threshold"
 	}
+	// --window broad stroke: sets both periods; overridden below by explicit
+	// --check-period / --query-period if the user gave those too.
 	if s.WindowSecs > 0 {
 		body["check_period"] = s.WindowSecs
 		body["query_period"] = s.WindowSecs

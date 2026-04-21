@@ -228,6 +228,30 @@ func TestTelemetry_AlertsEndpoints(t *testing.T) {
 	}
 }
 
+func TestTelemetry_EscapesIDsInURLPath(t *testing.T) {
+	var rawURI string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// RequestURI preserves the percent-encoded form as sent on the wire.
+		rawURI = r.RequestURI
+		fmt.Fprint(w, `{"data":{"id":"x"}}`)
+	}))
+	defer srv.Close()
+
+	c := NewTelemetry("tok", "dev").withBaseURL(srv.URL)
+	// ID containing reserved characters must be percent-encoded so it cannot
+	// inject path or query structure over the wire.
+	_, _ = c.GetExploration(context.Background(), "a?injected=1")
+
+	// The "?" must be percent-encoded in the request URI, or the BetterStack
+	// server would interpret the trailing bytes as a query string.
+	if strings.Contains(rawURI, "?injected") {
+		t.Errorf("URI contains unescaped '?' injecting a query string: %s", rawURI)
+	}
+	if !strings.Contains(rawURI, "%3F") {
+		t.Errorf("'?' should be percent-encoded to %%3F in: %s", rawURI)
+	}
+}
+
 func TestTelemetry_SourcesEndpoints(t *testing.T) {
 	var paths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

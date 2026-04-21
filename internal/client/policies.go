@@ -14,7 +14,7 @@ func (c *Client) ListPolicies(ctx context.Context, limit int) ([]json.RawMessage
 }
 
 func (c *Client) GetPolicy(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.t.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, policiesPath, id))
+	return c.t.fetchOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, policiesPath, pathID(id)))
 }
 
 func (c *Client) CreatePolicy(ctx context.Context, body []byte) (json.RawMessage, error) {
@@ -22,9 +22,9 @@ func (c *Client) CreatePolicy(ctx context.Context, body []byte) (json.RawMessage
 }
 
 func (c *Client) UpdatePolicy(ctx context.Context, id string, body []byte) (json.RawMessage, error) {
-	return c.t.patchOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, policiesPath, id), bytes.NewReader(body))
+	return c.t.patchOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, policiesPath, pathID(id)), bytes.NewReader(body))
 }
 
 func (c *Client) DeletePolicy(ctx context.Context, id string) error {
-	return c.t.deleteOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, policiesPath, id))
+	return c.t.deleteOne(ctx, fmt.Sprintf("%s%s/%s", c.t.baseURL, policiesPath, pathID(id)))
 }

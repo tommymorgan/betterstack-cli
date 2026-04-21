@@ -29,7 +29,11 @@ func runExplorationsUpsert(cmd *cobra.Command, c *client.TelemetryClient, s payl
 		return wrapAPIErr(err)
 	}
 
-	matches := findExplorationsByName(all, s.Name)
+	matches, parseErr := findExplorationsByName(all, s.Name)
+	if parseErr != nil {
+		return errs.Wrap(errs.ExitUpstream,
+			fmt.Errorf("upsert cannot match explorations: malformed envelope: %w", parseErr))
+	}
 	switch len(matches) {
 	case 0:
 		body, err := payload.BuildExplorationCreate(s)
@@ -44,7 +48,12 @@ func runExplorationsUpsert(cmd *cobra.Command, c *client.TelemetryClient, s payl
 
 	case 1:
 		existing := matches[0]
-		if explorationShorthandEquals(existing.raw, s) {
+		equal, parseErr := explorationShorthandEquals(existing.raw, s)
+		if parseErr != nil {
+			return errs.Wrap(errs.ExitUpstream,
+				fmt.Errorf("could not verify match for upsert: malformed exploration envelope: %w", parseErr))
+		}
+		if equal {
 			return renderUpsert(cmd, "unchanged", existing.raw)
 		}
 		body, err := payload.BuildExplorationPatch(s)
@@ -74,7 +83,10 @@ type explorationSummary struct {
 	raw  json.RawMessage
 }
 
-func findExplorationsByName(list []json.RawMessage, name string) []explorationSummary {
+// findExplorationsByName returns every exploration in list whose name
+// matches. A parse failure on any envelope is surfaced as an error so upsert
+// does not silently miss a match and POST a duplicate.
+func findExplorationsByName(list []json.RawMessage, name string) ([]explorationSummary, error) {
 	var out []explorationSummary
 	for _, item := range list {
 		var env struct {
@@ -84,39 +96,41 @@ func findExplorationsByName(list []json.RawMessage, name string) []explorationSu
 			} `json:"attributes"`
 		}
 		if err := json.Unmarshal(item, &env); err != nil {
-			continue
+			return nil, err
 		}
 		if env.Attributes.Name == name {
 			out = append(out, explorationSummary{id: env.ID, name: env.Attributes.Name, raw: item})
 		}
 	}
-	return out
+	return out, nil
 }
 
 // explorationShorthandEquals checks whether the existing resource already has
 // the provided-shorthand values. Equality is over only the provided fields.
-func explorationShorthandEquals(raw json.RawMessage, s payload.ExplorationShorthand) bool {
+// Returns (false, err) on parse failure so upsert does not silently treat an
+// unreadable match as "unchanged".
+func explorationShorthandEquals(raw json.RawMessage, s payload.ExplorationShorthand) (bool, error) {
 	var e output.Exploration
 	if err := json.Unmarshal(raw, &e); err != nil {
-		return false
+		return false, err
 	}
 	// Name is always provided in an upsert (matching logic requires it).
 	if s.Name != "" && e.Attributes.Name != s.Name {
-		return false
+		return false, nil
 	}
 	if s.SourceID != "" {
 		if len(e.Attributes.Queries) == 0 || e.Attributes.Queries[0].SourceVariable != s.SourceID {
-			return false
+			return false, nil
 		}
 	}
 	if s.Pattern != "" {
 		// The where_condition is built from the pattern; compare the resulting literal.
 		want := fmt.Sprintf(`message CONTAINS %q`, s.Pattern)
 		if len(e.Attributes.Queries) == 0 || e.Attributes.Queries[0].WhereCondition != want {
-			return false
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
 func renderUpsert(cmd *cobra.Command, action string, resource json.RawMessage) error {

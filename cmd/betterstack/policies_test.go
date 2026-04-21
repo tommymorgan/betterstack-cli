@@ -294,6 +294,42 @@ func TestPolicies_DeleteForceSkipsPrecheck(t *testing.T) {
 	}
 }
 
+func TestPolicies_DeletePrecheckFailsClosedOnMalformedAlert(t *testing.T) {
+	// A malformed alert envelope must NOT allow the delete to proceed. If the
+	// precheck cannot read the alert, it cannot prove the absence of a
+	// dependency, and must fail closed.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/alerts" {
+			// `data` element is a string instead of an object — unmarshalling
+			// it into the alertEnvelope struct fails.
+			fmt.Fprint(w, `{"data":["this-should-be-an-object"]}`)
+			return
+		}
+		if r.Method == "DELETE" {
+			t.Errorf("DELETE must not be issued when precheck cannot verify dependencies")
+		}
+	}))
+	defer srv.Close()
+
+	t.Setenv("BETTERSTACK_API_TOKEN", "uptime")
+	t.Setenv("BETTERSTACK_TELEMETRY_TOKEN", "telemetry")
+	t.Setenv("BETTERSTACK_BASE_URL", srv.URL)
+	t.Setenv("BETTERSTACK_TELEMETRY_BASE_URL", srv.URL)
+	t.Setenv("BETTERSTACK_QUIET", "1")
+	resetPolicyFlags(t)
+
+	_, _, err := executeCmd(t, "policies", "delete", "42", "--yes")
+	if err == nil {
+		t.Fatal("expected error when precheck cannot parse alerts")
+	}
+	if errs.CodeOf(err) != errs.ExitUpstream {
+		t.Errorf("exit code = %d, want 5 (upstream)", errs.CodeOf(err))
+	}
+	if !strings.Contains(err.Error(), "malformed") {
+		t.Errorf("error should mention malformed envelope: %s", err.Error())
+	}
+}
+
 func TestPolicies_DeletePostPrecheckRace(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/alerts" {

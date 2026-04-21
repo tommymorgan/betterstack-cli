@@ -10,6 +10,12 @@ import (
 	"os"
 )
 
+// pathID returns id percent-encoded for safe interpolation into a URL path.
+// BetterStack IDs are numeric, but defense-in-depth costs nothing.
+func pathID(id string) string {
+	return url.PathEscape(id)
+}
+
 const (
 	telemetryBaseURL = "https://telemetry.betterstack.com"
 	explorationsPath = "/api/v2/explorations"
@@ -51,7 +57,7 @@ func (c *TelemetryClient) ListExplorations(ctx context.Context, limit int) ([]js
 }
 
 func (c *TelemetryClient) GetExploration(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.t.fetchOne(ctx, c.t.baseURL+explorationsPath+"/"+id)
+	return c.t.fetchOne(ctx, c.t.baseURL+explorationsPath+"/"+pathID(id))
 }
 
 func (c *TelemetryClient) CreateExploration(ctx context.Context, body []byte) (json.RawMessage, error) {
@@ -59,11 +65,11 @@ func (c *TelemetryClient) CreateExploration(ctx context.Context, body []byte) (j
 }
 
 func (c *TelemetryClient) UpdateExploration(ctx context.Context, id string, body []byte) (json.RawMessage, error) {
-	return c.t.patchOne(ctx, c.t.baseURL+explorationsPath+"/"+id, bytes.NewReader(body))
+	return c.t.patchOne(ctx, c.t.baseURL+explorationsPath+"/"+pathID(id), bytes.NewReader(body))
 }
 
 func (c *TelemetryClient) DeleteExploration(ctx context.Context, id string) error {
-	return c.t.deleteOne(ctx, c.t.baseURL+explorationsPath+"/"+id)
+	return c.t.deleteOne(ctx, c.t.baseURL+explorationsPath+"/"+pathID(id))
 }
 
 // ExplorationAlertsFirstPage fetches one page of the scoped alerts endpoint
@@ -71,7 +77,7 @@ func (c *TelemetryClient) DeleteExploration(ctx context.Context, id string) erro
 func (c *TelemetryClient) ExplorationAlertsFirstPage(ctx context.Context, explorationID string, perPage int) ([]json.RawMessage, error) {
 	q := url.Values{}
 	q.Set("per_page", fmt.Sprintf("%d", perPage))
-	endpoint := fmt.Sprintf("%s%s/%s/alerts", c.t.baseURL, explorationsPath, explorationID)
+	endpoint := fmt.Sprintf("%s%s/%s/alerts", c.t.baseURL, explorationsPath, pathID(explorationID))
 	return c.t.fetchPage(ctx, endpoint, q)
 }
 
@@ -82,20 +88,20 @@ func (c *TelemetryClient) ListAlerts(ctx context.Context, limit int) ([]json.Raw
 }
 
 func (c *TelemetryClient) GetAlert(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.t.fetchOne(ctx, c.t.baseURL+alertsPath+"/"+id)
+	return c.t.fetchOne(ctx, c.t.baseURL+alertsPath+"/"+pathID(id))
 }
 
 func (c *TelemetryClient) CreateAlert(ctx context.Context, explorationID string, body []byte) (json.RawMessage, error) {
-	endpoint := fmt.Sprintf("%s%s/%s/alerts", c.t.baseURL, explorationsPath, explorationID)
+	endpoint := fmt.Sprintf("%s%s/%s/alerts", c.t.baseURL, explorationsPath, pathID(explorationID))
 	return c.t.postOne(ctx, endpoint, bytes.NewReader(body))
 }
 
 func (c *TelemetryClient) UpdateAlert(ctx context.Context, id string, body []byte) (json.RawMessage, error) {
-	return c.t.patchOne(ctx, c.t.baseURL+alertsPath+"/"+id, bytes.NewReader(body))
+	return c.t.patchOne(ctx, c.t.baseURL+alertsPath+"/"+pathID(id), bytes.NewReader(body))
 }
 
 func (c *TelemetryClient) DeleteAlert(ctx context.Context, id string) error {
-	return c.t.deleteOne(ctx, c.t.baseURL+alertsPath+"/"+id)
+	return c.t.deleteOne(ctx, c.t.baseURL+alertsPath+"/"+pathID(id))
 }
 
 // IterateAlerts walks every page of /api/v2/alerts, invoking visit on each
@@ -133,5 +139,5 @@ func (c *TelemetryClient) ListSources(ctx context.Context, limit int) ([]json.Ra
 }
 
 func (c *TelemetryClient) GetSource(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.t.fetchOne(ctx, c.t.baseURL+sourcesPath+"/"+id)
+	return c.t.fetchOne(ctx, c.t.baseURL+sourcesPath+"/"+pathID(id))
 }

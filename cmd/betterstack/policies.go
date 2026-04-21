@@ -141,15 +141,28 @@ func runPoliciesDelete(cmd *cobra.Command, args []string) error {
 
 	if !force {
 		// Paginate alerts via the telemetry host, short-circuiting on first match.
+		// The precheck must fail CLOSED on parse errors: a malformed alert envelope
+		// could hide a real dependency, and silently ignoring it would allow a
+		// policy delete that orphans alerts.
 		telemetry, err := resolveTelemetry(cmd)
 		if err != nil {
 			return err
 		}
+		var parseErr error
 		found, err := telemetry.IterateAlerts(context.Background(), func(item json.RawMessage) bool {
-			return alertReferencesPolicy(item, id)
+			matches, perr := alertReferencesPolicyStrict(item, id)
+			if perr != nil {
+				parseErr = perr
+				return true // short-circuit; caller handles parseErr
+			}
+			return matches
 		})
 		if err != nil {
 			return wrapAPIErr(err)
+		}
+		if parseErr != nil {
+			return errs.Wrap(errs.ExitUpstream,
+				fmt.Errorf("could not verify policy dependencies: malformed alert in /api/v2/alerts: %w", parseErr))
 		}
 		if found != nil {
 			return EmitDependencyConflict(cmd, DependencyConflict{
@@ -171,15 +184,15 @@ func runPoliciesDelete(cmd *cobra.Command, args []string) error {
 	return output.RenderDeleteEnvelope(cmd.OutOrStdout(), "policy", id, jsonFlag(cmd))
 }
 
-// alertReferencesPolicy reports whether a raw alert's escalation_target
-// references the given policy ID. Uses string comparison on json.Number so
-// both integer and string representations match.
-func alertReferencesPolicy(raw json.RawMessage, policyID string) bool {
+// alertReferencesPolicyStrict reports whether a raw alert's escalation_target
+// references the given policy ID. Returns (false, err) when the alert envelope
+// fails to parse so the caller can fail the safety-critical precheck closed.
+func alertReferencesPolicyStrict(raw json.RawMessage, policyID string) (bool, error) {
 	var e alertEnvelope
 	if err := json.Unmarshal(raw, &e); err != nil {
-		return false
+		return false, err
 	}
-	return string(e.Attributes.EscalationTarget.PolicyID) == policyID
+	return string(e.Attributes.EscalationTarget.PolicyID) == policyID, nil
 }
 
 func renderPolicyResult(cmd *cobra.Command, result json.RawMessage) error {
