@@ -20,4 +20,5 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().Bool("json", false, "Output results as JSON")
+	rootCmd.PersistentFlags().Bool("quiet", false, "Suppress informational messages (e.g., telemetry-token fallback notice)")
 }

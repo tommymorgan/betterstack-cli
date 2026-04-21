@@ -16,6 +16,10 @@ const (
 type CLIError struct {
 	Code ExitCode
 	Err  error
+	// Silent indicates the command has already written its formatted error to
+	// stderr. The CLI entrypoint must skip the default "Error: <msg>" line
+	// and only apply the exit code.
+	Silent bool
 }
 
 func (e *CLIError) Error() string {
@@ -44,6 +48,23 @@ func Wrap(code ExitCode, err error) *CLIError {
 		return existing
 	}
 	return &CLIError{Code: code, Err: err}
+}
+
+// SilentExit returns a CLIError that carries only an exit code; the caller
+// has already written the user-facing message to stderr.
+func SilentExit(code ExitCode) *CLIError {
+	return &CLIError{Code: code, Silent: true}
+}
+
+// IsSilent reports whether main should skip the default error line.
+func IsSilent(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*CLIError); ok {
+		return e.Silent
+	}
+	return false
 }
 
 func CodeOf(err error) ExitCode {

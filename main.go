@@ -5,11 +5,16 @@ import (
 	"os"
 
 	"github.com/tommymorgan/betterstack-cli/cmd/betterstack"
+	"github.com/tommymorgan/betterstack-cli/internal/errs"
 )
 
 func main() {
-	if err := betterstack.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		os.Exit(1)
+	err := betterstack.Execute()
+	if err == nil {
+		return
 	}
+	if !errs.IsSilent(err) {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+	}
+	os.Exit(int(errs.CodeOf(err)))
 }
