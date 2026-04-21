@@ -33,7 +33,8 @@ func BuildAlertCreate(s AlertShorthand) ([]byte, error) {
 		return nil, errs.New(errs.ExitUserInput, "--window is required when not using --body-file")
 	}
 	if s.PolicyID == "" {
-		return nil, errs.New(errs.ExitUserInput, "--policy-id is required when not using --body-file")
+		return nil, errs.New(errs.ExitUserInput,
+			"--policy-id is required for shorthand; for team_id/user_id/schedule_id or the \"current_team\" sentinel, use --body-file")
 	}
 	if s.Name == "" {
 		return nil, errs.New(errs.ExitUserInput, "--name is required when not using --body-file")

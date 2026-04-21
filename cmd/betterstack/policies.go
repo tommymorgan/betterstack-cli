@@ -187,12 +187,19 @@ func runPoliciesDelete(cmd *cobra.Command, args []string) error {
 // alertReferencesPolicyStrict reports whether a raw alert's escalation_target
 // references the given policy ID. Returns (false, err) when the alert envelope
 // fails to parse so the caller can fail the safety-critical precheck closed.
+// An escalation_target that is a string sentinel (e.g. "current_team") or an
+// object without policy_id is NOT a match, not an error — those shapes are
+// valid BetterStack responses.
 func alertReferencesPolicyStrict(raw json.RawMessage, policyID string) (bool, error) {
 	var e alertEnvelope
 	if err := json.Unmarshal(raw, &e); err != nil {
 		return false, err
 	}
-	return string(e.Attributes.EscalationTarget.PolicyID) == policyID, nil
+	pid, ok := alertPolicyID(e.Attributes.EscalationTarget)
+	if !ok {
+		return false, nil
+	}
+	return pid == policyID, nil
 }
 
 func renderPolicyResult(cmd *cobra.Command, result json.RawMessage) error {

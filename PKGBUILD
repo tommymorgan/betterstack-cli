@@ -1,6 +1,6 @@
 # Maintainer: Tommy Morgan <tommy@tommymorgan.com>
 pkgname=betterstack-cli-git
-pkgver=r5.cb5c770
+pkgver=r13.aa53b47
 pkgrel=1
 pkgdesc='CLI for interacting with the BetterStack API'
 arch=('x86_64' 'aarch64')

@@ -218,8 +218,8 @@ func TestLogsAlerts_ListShowsTable(t *testing.T) {
 func TestLogsAlerts_ListFiltersByExplorationClientSide(t *testing.T) {
 	srv := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"data":[
-			{"id":"1","attributes":{"name":"a","exploration_id":"5","value":1,"operator":"higher_than_or_equal","check_period":60}},
-			{"id":"2","attributes":{"name":"b","exploration_id":"99","value":1,"operator":"higher_than_or_equal","check_period":60}}
+			{"id":"1","attributes":{"name":"a","exploration_id":5,"value":1,"operator":"higher_than_or_equal","check_period":60}},
+			{"id":"2","attributes":{"name":"b","exploration_id":99,"value":1,"operator":"higher_than_or_equal","check_period":60}}
 		]}`)
 	})
 	setupTelemetryEnv(t, srv.URL())
@@ -264,7 +264,7 @@ func TestLogsAlerts_ListFiltersByPolicyClientSide(t *testing.T) {
 
 func TestLogsAlerts_GetShowsDetail(t *testing.T) {
 	srv := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"data":{"id":"9","attributes":{"name":"INF-3017","exploration_id":"5","value":3,"operator":"higher_than_or_equal","check_period":300,"query_period":300,"paused":false,"escalation_target":{"policy_id":77}}}}`)
+		fmt.Fprint(w, `{"data":{"id":"9","attributes":{"name":"INF-3017","exploration_id":5,"value":3,"operator":"higher_than_or_equal","check_period":300,"query_period":300,"paused":false,"escalation_target":{"policy_id":77}}}}`)
 	})
 	setupTelemetryEnv(t, srv.URL())
 	resetAlertFlags(t)
@@ -346,13 +346,13 @@ func TestLogsAlerts_UpsertScopesNameToExploration(t *testing.T) {
 	srv := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && r.URL.Path == "/api/v2/alerts" {
 			// An alert named INF-3017 exists on exploration A; the user targets exploration B.
-			fmt.Fprint(w, `{"data":[{"id":"1","attributes":{"name":"INF-3017","exploration_id":"A","value":3,"operator":"higher_than_or_equal","check_period":60}}]}`)
+			fmt.Fprint(w, `{"data":[{"id":"1","attributes":{"name":"INF-3017","exploration_id":1001,"value":3,"operator":"higher_than_or_equal","check_period":60}}]}`)
 			return
 		}
 		if r.Method == "POST" {
 			postCalled = true
 			w.WriteHeader(http.StatusCreated)
-			fmt.Fprint(w, `{"data":{"id":"new","attributes":{"name":"INF-3017","exploration_id":"B"}}}`)
+			fmt.Fprint(w, `{"data":{"id":"new","attributes":{"name":"INF-3017","exploration_id":1002}}}`)
 		}
 	})
 	setupTelemetryEnv(t, srv.URL())
@@ -372,6 +372,93 @@ func TestLogsAlerts_UpsertScopesNameToExploration(t *testing.T) {
 	_ = json.Unmarshal([]byte(out), &env)
 	if env["action"] != "created" {
 		t.Errorf("action = %v, want created", env["action"])
+	}
+}
+
+// Field-reported regression: accounts commonly have alerts with
+// escalation_target: "current_team" (a string sentinel). The upsert match
+// path must tolerate this shape account-wide, not fail closed on the first
+// such alert.
+func TestLogsAlerts_UpsertToleratesStringEscalationTarget(t *testing.T) {
+	srv := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.Path == "/api/v2/alerts" {
+			// Realistic account shape: some alerts use "current_team" (string),
+			// some use {"policy_id": N} (object). Before the fix, the string
+			// form made the whole envelope fail to unmarshal and killed upsert.
+			fmt.Fprint(w, `{"data":[
+				{"id":"100","attributes":{"name":"existing-a","exploration_id":500,"value":1,"operator":"higher_than_or_equal","check_period":60,"escalation_target":"current_team"}},
+				{"id":"101","attributes":{"name":"existing-b","exploration_id":500,"value":1,"operator":"higher_than_or_equal","check_period":60,"escalation_target":{"policy_id":77}}}
+			]}`)
+			return
+		}
+		if r.Method == "POST" {
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"data":{"id":"new","attributes":{"name":"brand-new","exploration_id":999}}}`)
+		}
+	})
+	setupTelemetryEnv(t, srv.URL())
+	resetAlertFlags(t)
+
+	out, _, err := executeCmd(t, "logs-alerts", "create",
+		"--exploration-id", "999", "--name", "brand-new",
+		"--threshold", "1", "--window", "5m", "--policy-id", "77",
+		"--upsert", "--json")
+	if err != nil {
+		t.Fatalf("upsert must tolerate string escalation_target: %v", err)
+	}
+	var env map[string]any
+	_ = json.Unmarshal([]byte(out), &env)
+	if env["action"] != "created" {
+		t.Errorf("action = %v, want created", env["action"])
+	}
+}
+
+// Field-reported regression: list --exploration-id failed because the server
+// returns exploration_id as a JSON number, not a string.
+func TestLogsAlerts_ListExplorationIDFilterWorksOnNumericServerID(t *testing.T) {
+	srv := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[
+			{"id":"1","attributes":{"name":"keep","exploration_id":766903,"value":1,"operator":"higher_than_or_equal","check_period":60}},
+			{"id":"2","attributes":{"name":"drop","exploration_id":766905,"value":1,"operator":"higher_than_or_equal","check_period":60}}
+		]}`)
+	})
+	setupTelemetryEnv(t, srv.URL())
+	resetAlertFlags(t)
+
+	out, _, err := executeCmd(t, "logs-alerts", "list", "--exploration-id", "766903")
+	if err != nil {
+		t.Fatalf("filter must not fail on numeric exploration_id: %v", err)
+	}
+	if !strings.Contains(out, "keep") {
+		t.Errorf("expected 'keep' row:\n%s", out)
+	}
+	if strings.Contains(out, "drop") {
+		t.Errorf("'drop' should be filtered out:\n%s", out)
+	}
+}
+
+// Field-reported regression: logs-alerts update without --json pretty-printed
+// through the same broken struct. The server-side change succeeded but the
+// CLI errored on the output formatter. The update response must render
+// cleanly regardless of --json.
+func TestLogsAlerts_UpdateRendersCleanlyWithNumericExplorationID(t *testing.T) {
+	srv := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			fmt.Fprint(w, `{"data":{"id":"9","attributes":{"name":"n","exploration_id":766903,"value":3,"operator":"higher_than_or_equal","check_period":300,"query_period":300,"paused":false,"escalation_target":"current_team"}}}`)
+		}
+	})
+	setupTelemetryEnv(t, srv.URL())
+	resetAlertFlags(t)
+
+	out, _, err := executeCmd(t, "logs-alerts", "update", "9", "--no-paused")
+	if err != nil {
+		t.Fatalf("update must render realistic server responses: %v", err)
+	}
+	if !strings.Contains(out, "766903") {
+		t.Errorf("exploration_id should appear in detail output:\n%s", out)
+	}
+	if !strings.Contains(out, "current_team") {
+		t.Errorf("escalation_target 'current_team' should render as-is:\n%s", out)
 	}
 }
 

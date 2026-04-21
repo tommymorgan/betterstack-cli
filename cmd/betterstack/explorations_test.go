@@ -560,6 +560,81 @@ func TestExplorations_UpsertIncompatibleWithBodyFile(t *testing.T) {
 	}
 }
 
+// Field-reported concern: upsert envelope claim is that BOTH POST and PATCH
+// paths wrap the resource as {"action": ..., "resource": ...}. This locks in
+// that contract so non-upsert (bare resource) vs upsert (wrapped) is the only
+// shape split callers need to handle.
+func TestExplorations_UpsertWrapsBothPOSTAndPATCHIdentically(t *testing.T) {
+	// POST path: no match → action=created, wrapped.
+	srv1 := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.Path == "/api/v2/explorations" {
+			fmt.Fprint(w, `{"data":[]}`)
+			return
+		}
+		if r.Method == "POST" {
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"data":{"id":"111","attributes":{"name":"X"}}}`)
+		}
+	})
+	setupTelemetryEnv(t, srv1.URL())
+	resetExplorationFlags(t)
+
+	out1, _, err := executeCmd(t, "explorations", "create",
+		"--source-id", "1", "--pattern", "p", "--name", "X", "--upsert", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env1 map[string]any
+	if err := json.Unmarshal([]byte(out1), &env1); err != nil {
+		t.Fatalf("POST-path output not JSON: %v\n%s", err, out1)
+	}
+	if env1["action"] != "created" {
+		t.Errorf("POST path action = %v, want created", env1["action"])
+	}
+	if env1["resource"] == nil {
+		t.Errorf("POST path must include 'resource' key (wrapped envelope): %v", env1)
+	}
+
+	// PATCH path: one match, differs → action=updated, wrapped.
+	srv2 := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.Path == "/api/v2/explorations" {
+			fmt.Fprint(w, `{"data":[{"id":"111","attributes":{"name":"X","queries":[{"query_type":"tail_query","where_condition":"old","source_variable":"old"}]}}]}`)
+			return
+		}
+		if r.Method == "PATCH" {
+			fmt.Fprint(w, `{"data":{"id":"111","attributes":{"name":"X"}}}`)
+		}
+	})
+	setupTelemetryEnv(t, srv2.URL())
+	resetExplorationFlags(t)
+
+	out2, _, err := executeCmd(t, "explorations", "create",
+		"--source-id", "2", "--pattern", "p2", "--name", "X", "--upsert", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env2 map[string]any
+	if err := json.Unmarshal([]byte(out2), &env2); err != nil {
+		t.Fatalf("PATCH-path output not JSON: %v\n%s", err, out2)
+	}
+	if env2["action"] != "updated" {
+		t.Errorf("PATCH path action = %v, want updated", env2["action"])
+	}
+	if env2["resource"] == nil {
+		t.Errorf("PATCH path must include 'resource' key (wrapped envelope): %v", env2)
+	}
+
+	// Both envelopes must carry the same set of top-level keys.
+	for _, key := range []string{"action", "resource"} {
+		if _, ok := env1[key]; !ok {
+			t.Errorf("POST envelope missing key %q", key)
+		}
+		if _, ok := env2[key]; !ok {
+			t.Errorf("PATCH envelope missing key %q", key)
+		}
+	}
+}
+
 func TestExplorations_UpsertPatch404ReportsRace(t *testing.T) {
 	srv := newTelemetryTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && r.URL.Path == "/api/v2/explorations" {

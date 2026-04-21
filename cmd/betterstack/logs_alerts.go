@@ -79,9 +79,13 @@ var logsAlertsCreateCmd = &cobra.Command{
 	Short: "Create a logs alert on an exploration",
 	Long: `Create a threshold alert attached to an exploration. Shorthand flags produce a >= threshold alert routed through an escalation policy.
 
-Alerts route via escalation policies (use "policies create" or "policies list" to pick one); direct channels require --body-file as the escape hatch.
+Shorthand requires --exploration-id, --name, --threshold, --window, and --policy-id.
 
-The shorthand mode and --body-file are mutually exclusive. The --upsert flag (shorthand only) is non-atomic within the target exploration scope: a concurrent actor may create a duplicate between the list and the POST.`,
+Non-policy routing (team_id, user_id, schedule_id, or the "current_team" string sentinel) requires --body-file — pick one from "policies list" to use shorthand, or use --body-file for any other escalation_target shape.
+
+The shorthand mode and --body-file are mutually exclusive. The --upsert flag (shorthand only) is non-atomic within the target exploration scope: a concurrent actor may create a duplicate between the list and the POST.
+
+JSON output envelope: non-upsert emits the resource directly; --upsert wraps it as {"action": ..., "resource": ...}. Callers that need one selector across both can use '.id // .resource.id'.`,
 	RunE: runLogsAlertsCreate,
 }
 
@@ -388,19 +392,22 @@ type alertSummary struct {
 	raw           json.RawMessage
 }
 
-// alertEnvelope covers either top-level exploration_id or relationships.exploration.data.id.
+// alertEnvelope covers either top-level exploration_id or
+// relationships.exploration.data.id. ExplorationID is json.Number because the
+// server returns it as a JSON number (not a string). EscalationTarget is raw
+// because the server returns either an object or a string sentinel
+// ("current_team"); binding it to a narrow struct made every alert in a
+// mixed-shape account fail to unmarshal.
 type alertEnvelope struct {
 	ID         string `json:"id"`
 	Attributes struct {
-		Name             string `json:"name"`
-		ExplorationID    string `json:"exploration_id"`
-		Value            int    `json:"value"`
-		Operator         string `json:"operator"`
-		CheckPeriod      int    `json:"check_period"`
-		QueryPeriod      int    `json:"query_period"`
-		EscalationTarget struct {
-			PolicyID json.Number `json:"policy_id"`
-		} `json:"escalation_target"`
+		Name             string          `json:"name"`
+		ExplorationID    json.Number     `json:"exploration_id"`
+		Value            int             `json:"value"`
+		Operator         string          `json:"operator"`
+		CheckPeriod      int             `json:"check_period"`
+		QueryPeriod      int             `json:"query_period"`
+		EscalationTarget json.RawMessage `json:"escalation_target"`
 	} `json:"attributes"`
 	Relationships struct {
 		Exploration struct {
@@ -411,21 +418,45 @@ type alertEnvelope struct {
 	} `json:"relationships"`
 }
 
+// alertPolicyID extracts the policy ID from an alert's raw escalation_target,
+// returning ("", false) when the target is a string sentinel (e.g.
+// "current_team") or an object without a policy_id.
+func alertPolicyID(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	var obj struct {
+		PolicyID json.Number `json:"policy_id"`
+	}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return "", false
+	}
+	if obj.PolicyID == "" {
+		return "", false
+	}
+	return obj.PolicyID.String(), true
+}
+
 func parseAlert(raw json.RawMessage) (alertSummary, bool) {
 	var e alertEnvelope
 	if err := json.Unmarshal(raw, &e); err != nil {
 		return alertSummary{}, false
 	}
-	expID := e.Attributes.ExplorationID
-	if expID == "" {
-		expID = e.Relationships.Exploration.Data.ID
-	}
 	return alertSummary{
 		id:            e.ID,
 		name:          e.Attributes.Name,
-		explorationID: expID,
+		explorationID: alertExplorationID(e),
 		raw:           raw,
 	}, true
+}
+
+// alertExplorationID returns the parent exploration ID as a string, preferring
+// attributes.exploration_id (json.Number) and falling back to relationships.
+func alertExplorationID(e alertEnvelope) string {
+	if e.Attributes.ExplorationID != "" {
+		return e.Attributes.ExplorationID.String()
+	}
+	return e.Relationships.Exploration.Data.ID
 }
 
 // findAlertsByNameAndExploration filters alerts that match both name and
@@ -452,14 +483,10 @@ func parseAlertStrict(raw json.RawMessage) (alertSummary, error) {
 	if err := json.Unmarshal(raw, &e); err != nil {
 		return alertSummary{}, err
 	}
-	expID := e.Attributes.ExplorationID
-	if expID == "" {
-		expID = e.Relationships.Exploration.Data.ID
-	}
 	return alertSummary{
 		id:            e.ID,
 		name:          e.Attributes.Name,
-		explorationID: expID,
+		explorationID: alertExplorationID(e),
 		raw:           raw,
 	}, nil
 }
@@ -485,7 +512,11 @@ func filterAlertsByPolicy(list []json.RawMessage, policyID string) []json.RawMes
 		if err := json.Unmarshal(item, &e); err != nil {
 			continue
 		}
-		if string(e.Attributes.EscalationTarget.PolicyID) == policyID {
+		pid, ok := alertPolicyID(e.Attributes.EscalationTarget)
+		if !ok {
+			continue
+		}
+		if pid == policyID {
 			out = append(out, item)
 		}
 	}
@@ -520,8 +551,11 @@ func alertShorthandEquals(raw json.RawMessage, s payload.AlertShorthand) (bool, 
 	if s.QuerySecs > 0 && e.Attributes.QueryPeriod != s.QuerySecs {
 		return false, nil
 	}
-	if s.PolicyID != "" && string(e.Attributes.EscalationTarget.PolicyID) != s.PolicyID {
-		return false, nil
+	if s.PolicyID != "" {
+		pid, ok := alertPolicyID(e.Attributes.EscalationTarget)
+		if !ok || pid != s.PolicyID {
+			return false, nil
+		}
 	}
 	return true, nil
 }
@@ -535,7 +569,7 @@ func init() {
 		c.Flags().String("check-period", "", "Check period (Go duration; defaults to --window)")
 		c.Flags().String("query-period", "", "Query period (Go duration; defaults to --window)")
 		c.Flags().String("recovery", "", "Recovery period (Go duration)")
-		c.Flags().String("policy-id", "", "Escalation policy ID (numeric)")
+		c.Flags().String("policy-id", "", "Escalation policy ID (numeric; required for shorthand — use --body-file for team/user/schedule/\"current_team\" routing)")
 		c.Flags().Bool("paused", false, "Create alert in paused state")
 		c.Flags().Bool("no-paused", false, "Create/update alert in unpaused state")
 	}

@@ -76,23 +76,25 @@ func RenderExplorationDetail(w io.Writer, data json.RawMessage) error {
 type LogsAlert struct {
 	ID         string `json:"id"`
 	Attributes struct {
-		Name             string `json:"name"`
-		AlertType        string `json:"alert_type"`
-		Operator         string `json:"operator"`
-		Value            int    `json:"value"`
-		CheckPeriod      int    `json:"check_period"`
-		QueryPeriod      int    `json:"query_period"`
-		RecoveryPeriod   int    `json:"recovery_period"`
-		Paused           bool   `json:"paused"`
-		ExplorationID    string `json:"exploration_id"`
-		EscalationTarget struct {
-			PolicyID   json.Number `json:"policy_id"`
-			TeamID     json.Number `json:"team_id"`
-			UserID     json.Number `json:"user_id"`
-			ScheduleID json.Number `json:"schedule_id"`
-		} `json:"escalation_target"`
-		UpdatedAt string `json:"updated_at"`
-		CreatedAt string `json:"created_at"`
+		Name           string `json:"name"`
+		AlertType      string `json:"alert_type"`
+		Operator       string `json:"operator"`
+		Value          int    `json:"value"`
+		CheckPeriod    int    `json:"check_period"`
+		QueryPeriod    int    `json:"query_period"`
+		RecoveryPeriod int    `json:"recovery_period"`
+		Paused         bool   `json:"paused"`
+		// ExplorationID is json.Number because the server returns it as a
+		// JSON number, not a string. Holding it narrowly as string made the
+		// whole envelope fail to unmarshal.
+		ExplorationID json.Number `json:"exploration_id"`
+		// EscalationTarget is raw because the server sometimes returns an
+		// object ({"policy_id": N}, {"team_id": N}, etc.) and sometimes a
+		// string sentinel like "current_team". Holding it as a typed struct
+		// made every alert in a mixed-shape account fail to parse.
+		EscalationTarget json.RawMessage `json:"escalation_target"`
+		UpdatedAt        string          `json:"updated_at"`
+		CreatedAt        string          `json:"created_at"`
 	} `json:"attributes"`
 }
 
@@ -124,7 +126,7 @@ func RenderAlertDetail(w io.Writer, data json.RawMessage) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "ID:\t%s\n", a.ID)
 	fmt.Fprintf(tw, "Name:\t%s\n", orDash(a.Attributes.Name))
-	fmt.Fprintf(tw, "Exploration ID:\t%s\n", orDash(a.Attributes.ExplorationID))
+	fmt.Fprintf(tw, "Exploration ID:\t%s\n", orDash(a.Attributes.ExplorationID.String()))
 	fmt.Fprintf(tw, "Condition:\t%s\n", renderAlertCondition(a))
 	fmt.Fprintf(tw, "Check Period:\t%s\n", duration.Human(a.Attributes.CheckPeriod))
 	fmt.Fprintf(tw, "Query Period:\t%s\n", duration.Human(a.Attributes.QueryPeriod))
@@ -157,18 +159,37 @@ func renderAlertCondition(a LogsAlert) string {
 }
 
 func renderEscalationTarget(a LogsAlert) string {
-	et := a.Attributes.EscalationTarget
-	switch {
-	case et.PolicyID != "":
-		return "policy " + et.PolicyID.String()
-	case et.TeamID != "":
-		return "team " + et.TeamID.String()
-	case et.UserID != "":
-		return "user " + et.UserID.String()
-	case et.ScheduleID != "":
-		return "schedule " + et.ScheduleID.String()
+	raw := a.Attributes.EscalationTarget
+	if len(raw) == 0 {
+		return dash
 	}
-	return dash
+	// The server emits either a string sentinel ("current_team") or an
+	// object with one of several ID fields. Try string first (cheaper) then
+	// fall back to object shapes we know about.
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil && s != "" {
+		return s
+	}
+	var obj struct {
+		PolicyID   json.Number `json:"policy_id"`
+		TeamID     json.Number `json:"team_id"`
+		UserID     json.Number `json:"user_id"`
+		ScheduleID json.Number `json:"schedule_id"`
+	}
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		switch {
+		case obj.PolicyID != "":
+			return "policy " + obj.PolicyID.String()
+		case obj.TeamID != "":
+			return "team " + obj.TeamID.String()
+		case obj.UserID != "":
+			return "user " + obj.UserID.String()
+		case obj.ScheduleID != "":
+			return "schedule " + obj.ScheduleID.String()
+		}
+	}
+	// Shape we don't model; surface the raw JSON so the user can see it.
+	return string(raw)
 }
 
 type Policy struct {
