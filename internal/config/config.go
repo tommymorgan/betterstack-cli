@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/tommymorgan/betterstack-cli/internal/errs"
 )
 
 const (
@@ -121,12 +123,17 @@ func configFilePath() (string, error) {
 	return filepath.Join(home, ".config", configDir, configFileName), nil
 }
 
+// noTokenError reports a missing uptime API token as an auth-failure CLI
+// error (exit code 2) so the main entrypoint can map it to the correct exit
+// code without every callsite wrapping it.
 func noTokenError() error {
-	return fmt.Errorf("no API token found. Set %s or create ~/.config/%s/%s with:\n  api_token: <your-token>", envVarName, configDir, configFileName)
+	return errs.New(errs.ExitAuth,
+		"no API token found. Set %s or create ~/.config/%s/%s with:\n  api_token: <your-token>",
+		envVarName, configDir, configFileName)
 }
 
 func noTelemetryTokenError() error {
-	return fmt.Errorf(
+	return errs.New(errs.ExitAuth,
 		"no telemetry token found. Set %s or %s, or add telemetry_api_token or api_token to ~/.config/%s/%s. "+
 			"Telemetry commands prefer %s then telemetry_api_token, and fall back to %s/api_token (works only for global tokens).",
 		telemetryEnvVarName, envVarName, configDir, configFileName,

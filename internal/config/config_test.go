@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tommymorgan/betterstack-cli/internal/errs"
 )
 
 func TestResolveToken_EnvVarTakesPrecedence(t *testing.T) {
@@ -246,6 +248,33 @@ func TestResolveTelemetryToken_ErrorsWhenNothingConfigured(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), envVarName) {
 		t.Errorf("error should mention uptime env var, got: %s", err.Error())
+	}
+}
+
+func TestResolveToken_MissingTokenCarriesAuthExitCode(t *testing.T) {
+	t.Setenv(envVarName, "")
+	t.Setenv("HOME", t.TempDir())
+
+	_, err := ResolveToken()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := errs.CodeOf(err); got != errs.ExitAuth {
+		t.Errorf("CodeOf(err) = %d, want %d (ExitAuth)", got, errs.ExitAuth)
+	}
+}
+
+func TestResolveTelemetryToken_MissingTokenCarriesAuthExitCode(t *testing.T) {
+	t.Setenv(envVarName, "")
+	t.Setenv(telemetryEnvVarName, "")
+	t.Setenv("HOME", t.TempDir())
+
+	_, _, err := ResolveTelemetryToken()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := errs.CodeOf(err); got != errs.ExitAuth {
+		t.Errorf("CodeOf(err) = %d, want %d (ExitAuth)", got, errs.ExitAuth)
 	}
 }
 
