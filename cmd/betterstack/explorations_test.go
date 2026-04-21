@@ -75,20 +75,17 @@ func setupTelemetryEnv(t *testing.T, baseURL string) {
 
 func resetExplorationFlags(t *testing.T) {
 	t.Helper()
-	explorationsCreateCmd.Flags().Set("body-file", "")
-	explorationsCreateCmd.Flags().Set("source-id", "")
-	explorationsCreateCmd.Flags().Set("pattern", "")
-	explorationsCreateCmd.Flags().Set("name", "")
-	explorationsCreateCmd.Flags().Set("upsert", "false")
-	explorationsUpdateCmd.Flags().Set("body-file", "")
-	explorationsUpdateCmd.Flags().Set("source-id", "")
-	explorationsUpdateCmd.Flags().Set("pattern", "")
-	explorationsUpdateCmd.Flags().Set("name", "")
-	explorationsDeleteCmd.Flags().Set("yes", "false")
-	explorationsDeleteCmd.Flags().Set("force", "false")
-	explorationsListCmd.Flags().Set("limit", "0")
-	rootCmd.PersistentFlags().Set("json", "false")
-	rootCmd.PersistentFlags().Set("quiet", "false")
+	resetFlags(explorationsCreateCmd, "body-file", "source-id", "pattern", "name")
+	resetBoolFlags(explorationsCreateCmd, "upsert")
+	resetFlags(explorationsUpdateCmd, "body-file", "source-id", "pattern", "name")
+	resetBoolFlags(explorationsDeleteCmd, "yes", "force")
+	resetFlags(explorationsListCmd, "limit")
+	resetBoolFlags(rootCmd, "json")
+	rootCmd.PersistentFlags().Lookup("json").Changed = false
+	if q := rootCmd.PersistentFlags().Lookup("quiet"); q != nil {
+		_ = rootCmd.PersistentFlags().Set("quiet", "false")
+		q.Changed = false
+	}
 }
 
 func executeCmd(t *testing.T, args ...string) (stdout, stderr string, err error) {
